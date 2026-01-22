@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:lts
 
 RUN npm install -g @anthropic-ai/claude-code
 
