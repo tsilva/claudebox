@@ -1,124 +1,91 @@
 <div align="center">
   <img src="logo.png" alt="claude-sandbox" width="512"/>
 
-  [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-blue?style=flat-square)](https://developer.apple.com/macos/)
-  [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-required-orange?style=flat-square)](https://support.apple.com/en-us/HT211814)
-  [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+  # claude-sandbox
 
-  **Run Claude Code with full autonomy inside an isolated container**
+  [![macOS](https://img.shields.io/badge/macOS-26%2B-blue?logo=apple)](https://www.apple.com/macos/)
+  [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-M1%2FM2%2FM3%2FM4-orange)](https://support.apple.com/en-us/116943)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-  [Quick Start](#quick-start) · [Usage](#usage) · [How It Works](#how-it-works)
+  **🤖 Run Claude Code with full autonomy inside an isolated container — let it code freely without touching your system**
+
+  [Apple Container CLI](https://github.com/apple/container) · [Claude Code](https://claude.ai/code)
 </div>
-
----
 
 ## Overview
 
-claude-sandbox lets you run Claude Code with `--dangerously-skip-permissions` safely by isolating it inside Apple's native container technology. Your host system stays protected while Claude works autonomously on your codebase.
+claude-sandbox runs [Claude Code](https://claude.ai/code) with `--dangerously-skip-permissions` inside an isolated [Apple Container](https://github.com/apple/container) (lightweight Linux VM). This gives Claude full autonomy to install packages, run commands, and modify files — all safely contained without access to your host system.
 
 ## Features
 
-- **True isolation** — Each session runs in its own lightweight Linux VM
-- **Fast startup** — Sub-second container boot times on Apple Silicon
-- **Pre-built image** — Claude Code ready to go, no install wait
-- **Simple workflow** — One command from any project directory
-
-## Requirements
-
-- macOS 26 (Tahoe) or later
-- Apple Silicon (M1/M2/M3/M4)
-- [Apple Container CLI](https://github.com/apple/container) installed
-- `ANTHROPIC_API_KEY` environment variable set
+- 🔒 **Isolated execution** — Claude runs in a container with no access to your host filesystem (except the mounted project)
+- ⚡ **Full autonomy** — No permission prompts; Claude can execute any command inside the sandbox
+- 📁 **Project mounting** — Your current directory is mounted as `/workspace` for Claude to work on
+- 🛠️ **Simple setup** — One install script adds a shell function you can run from any project
 
 ## Quick Start
 
 ```bash
-# Clone and install
 git clone https://github.com/tsilva/claude-sandbox.git
 cd claude-sandbox
 ./install.sh
+source ~/.zshrc  # or ~/.bashrc
+```
 
-# Reload shell
-source ~/.zshrc
+Then from any project directory:
 
-# Run from any project
-cd ~/your-project
+```bash
+export ANTHROPIC_API_KEY="your-key"
+cd ~/my-project
 claude-sandbox
 ```
 
-## Usage
+## Requirements
 
-After installation, use `claude-sandbox` from any directory:
+| Requirement | Details |
+|-------------|---------|
+| **macOS** | 26 (Tahoe) or later |
+| **Chip** | Apple Silicon (M1/M2/M3/M4) |
+| **Container CLI** | [Apple Container](https://github.com/apple/container) installed |
+| **API Key** | `ANTHROPIC_API_KEY` environment variable |
 
-```bash
-cd ~/repos/my-project
-claude-sandbox
-```
+## Commands
 
-This mounts your current directory as `/workspace` inside the container and launches Claude with autonomous permissions.
-
-### Pass Arguments to Claude
-
-```bash
-claude-sandbox -p "Fix all lint errors and run tests"
-```
-
-### Rebuild the Image
-
-If you need to update Claude Code to the latest version:
-
-```bash
-./build.sh
-```
+| Script | Purpose |
+|--------|---------|
+| `./install.sh` | Build image and add `claude-sandbox` shell function |
+| `./build.sh` | Rebuild the container image |
+| `./uninstall.sh` | Remove the container image |
+| `./kill-containers.sh` | Force stop stuck containers (workaround for [apple/container#861](https://github.com/apple/container/issues/861)) |
 
 ## How It Works
 
-```
-┌─────────────────────────────────────┐
-│            macOS (Host)             │
-│  ┌───────────────────────────────┐  │
-│  │    Apple Container (VM)       │  │
-│  │  ┌─────────────────────────┐  │  │
-│  │  │   Claude Code (auto)    │  │  │
-│  │  │  ┌───────────────────┐  │  │  │
-│  │  │  │  /workspace       │◄─┼──┼──┼── $(pwd) mounted
-│  │  │  │  (your project)   │  │  │  │
-│  │  │  └───────────────────┘  │  │  │
-│  │  └─────────────────────────┘  │  │
-│  └───────────────────────────────┘  │
-└─────────────────────────────────────┘
+```mermaid
+graph LR
+    A[Your Project] -->|mount| B[Container]
+    B --> C[Claude Code]
+    C -->|full autonomy| D[Execute Commands]
+    D -->|changes| A
 ```
 
-- Your project files are mounted read-write at `/workspace`
-- Claude runs with `--dangerously-skip-permissions` (no prompts)
-- The container is isolated from your host filesystem
-- Each container gets its own IP address (no port forwarding needed)
+1. **install.sh** builds a Docker image with Claude Code pre-installed
+2. Running `claude-sandbox` starts a container with your current directory mounted
+3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
+4. All changes to `/workspace` are reflected in your project directory
 
-## Scripts
+## Troubleshooting
 
-| Script | Description |
-|--------|-------------|
-| `install.sh` | Build image and add `claude-sandbox` to your shell |
-| `build.sh` | Build/rebuild the container image |
-| `uninstall.sh` | Remove the container image |
+### Containers won't stop
 
-## Safety Notes
+Apple Container CLI has a [known bug](https://github.com/apple/container/issues/861) where stop commands don't work. Use the included workaround:
 
-While containerized, Claude can still:
-- Modify/delete files in your mounted project directory
-- Make network requests (API calls, package downloads)
+```bash
+./kill-containers.sh
+```
 
-**Recommendations:**
-- Commit your work before running autonomous sessions
-- Use git to review changes after Claude finishes
-- Don't mount directories with sensitive files you don't want modified
+This directly unloads the launchd services to force stop containers.
 
 ## License
 
 MIT
-
----
-
-<div align="center">
-  <sub>README.md must be kept up to date with any significant project changes</sub>
 </div>
