@@ -1,0 +1,3 @@
+- fix login recurrence issue
+- install native
+- pre-installed marketplaces and plugins

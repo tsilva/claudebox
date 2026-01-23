@@ -32,10 +32,15 @@ cd claude-sandbox
 source ~/.zshrc  # or ~/.bashrc
 ```
 
-Then from any project directory:
+Then authenticate once (uses your Claude Pro/Max subscription):
 
 ```bash
-export ANTHROPIC_API_KEY="your-key"
+claude-sandbox login
+```
+
+And from any project directory:
+
+```bash
 cd ~/my-project
 claude-sandbox
 ```
@@ -47,7 +52,7 @@ claude-sandbox
 | **macOS** | 26 (Tahoe) or later |
 | **Chip** | Apple Silicon (M1/M2/M3/M4) |
 | **Container CLI** | [Apple Container](https://github.com/apple/container) installed |
-| **API Key** | `ANTHROPIC_API_KEY` environment variable |
+| **Claude Account** | Claude Pro or Max subscription |
 
 ## Commands
 
@@ -57,6 +62,16 @@ claude-sandbox
 | `./build.sh` | Rebuild the container image |
 | `./uninstall.sh` | Remove the container image |
 | `./kill-containers.sh` | Force stop stuck containers (workaround for [apple/container#861](https://github.com/apple/container/issues/861)) |
+
+## Authentication
+
+claude-sandbox uses your Claude Pro/Max subscription instead of API keys. On first use, authenticate via browser:
+
+```bash
+claude-sandbox login
+```
+
+This opens a browser window for OAuth authentication. Your credentials are stored in `~/.claude-sandbox/claude-config/` and persist across all container sessions — you only need to log in once.
 
 ## How It Works
 
