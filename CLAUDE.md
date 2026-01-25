@@ -26,13 +26,27 @@ claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerousl
 
 The project consists of shell scripts that wrap Docker:
 
-- **Dockerfile** - Node.js LTS image with Claude Code globally installed, entry point runs `claude --dangerously-skip-permissions`
+- **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
 - **install.sh** - Builds the image and injects a `claude-sandbox` shell function that mounts the current directory as `/workspace`
 - **kill-containers.sh** - Stops all running claude-sandbox Docker containers
 
+### Key Implementation Details
+
+1. **Binary location**: Claude Code is installed to `/opt/claude-code/` (not `~/.claude/`) to avoid collision with the config volume mount at `~/.claude/`
+
+2. **Persisted state**: Two paths are mounted from the host:
+   - `~/.claude-sandbox/claude-config` → `/home/claude/.claude` (credentials, cache, settings)
+   - `~/.claude-sandbox/.claude.json` → `/home/claude/.claude.json` (session state)
+
+3. **Environment variables** (set in Dockerfile):
+   - `NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt` - Uses system CA certs (Claude Code's bundled certs may be incomplete)
+   - `NODE_OPTIONS="--dns-result-order=ipv4first"` - Avoids IPv6 routing issues in Docker
+
+4. **Container runtime**: Must use Docker, not Apple Container CLI (`container` command) - the latter has networking issues that cause ETIMEDOUT errors
+
 ## Requirements
 
-- [Docker](https://docs.docker.com/get-docker/) installed and running
+- [Docker Desktop](https://docs.docker.com/get-docker/) installed and running (not Apple Container CLI)
 
 ## Documentation
 

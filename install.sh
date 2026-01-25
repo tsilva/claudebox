@@ -11,9 +11,11 @@ SHELL_FUNCTION='
 # Claude Sandbox - run Claude Code in an isolated Docker container
 claude-sandbox() {
   mkdir -p ~/.claude-sandbox/claude-config
+  [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
   docker run -it --rm \
     -v "$(pwd)":/workspace \
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \
+    -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \
     claude-sandbox "$@"
 }'
 

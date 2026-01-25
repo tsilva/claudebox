@@ -49,8 +49,10 @@ claude-sandbox
 
 | Requirement | Details |
 |-------------|---------|
-| **Docker** | [Docker Desktop](https://docs.docker.com/get-docker/) or Docker Engine installed and running |
+| **Docker Desktop** | [Docker Desktop](https://docs.docker.com/get-docker/) installed and running (not Apple Container CLI) |
 | **Claude Account** | Claude Pro or Max subscription |
+
+> **Note**: This tool requires Docker Desktop, not the Apple Container CLI (`container` command). The Apple Container CLI has networking limitations that prevent Claude Code from connecting to Anthropic services.
 
 ## Commands
 
@@ -69,7 +71,7 @@ claude-sandbox uses your Claude Pro/Max subscription instead of API keys. On fir
 claude-sandbox login
 ```
 
-This opens a browser window for OAuth authentication. Your credentials are stored in `~/.claude-sandbox/claude-config/` and persist across all container sessions — you only need to log in once.
+This opens a browser window for OAuth authentication. Your credentials are stored in `~/.claude-sandbox/` and persist across all container sessions — you only need to log in once.
 
 ## How It Works
 
@@ -85,6 +87,33 @@ graph LR
 2. Running `claude-sandbox` starts a container with your current directory mounted
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
 4. All changes to `/workspace` are reflected in your project directory
+
+## Troubleshooting
+
+### "ETIMEDOUT" or "Unable to connect to Anthropic services"
+
+This usually means you're using Apple Container CLI instead of Docker. Verify you're using Docker:
+
+```bash
+which docker  # Should show Docker path
+type claude-sandbox  # Should show 'docker run', not 'container run'
+```
+
+If the function shows `container run`, update it to use `docker run` instead.
+
+### "Configuration file corrupted" on first run
+
+The `.claude.json` file needs to be valid JSON. Reset it:
+
+```bash
+echo '{}' > ~/.claude-sandbox/.claude.json
+```
+
+### Login doesn't persist
+
+Make sure both config paths are mounted. Check your shell function includes:
+- `-v ~/.claude-sandbox/claude-config:/home/claude/.claude`
+- `-v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json`
 
 ## License
 
