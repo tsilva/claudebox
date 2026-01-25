@@ -32,7 +32,7 @@ The project consists of shell scripts that wrap Docker:
 
 ### Key Implementation Details
 
-1. **Binary location**: Claude Code is installed to `/opt/claude-code/` (not `~/.claude/`) to avoid collision with the config volume mount at `~/.claude/`
+1. **Binary location**: Claude Code is installed to `/opt/claude-code/` (not `~/.claude/`) to avoid collision with the config volume mount at `~/.claude/`. A symlink at `~/.local/bin/claude` points to the binary to satisfy Claude Code's native install detection.
 
 2. **Persisted state**: Two paths are mounted from the host:
    - `~/.claude-sandbox/claude-config` → `/home/claude/.claude` (credentials, cache, settings)
