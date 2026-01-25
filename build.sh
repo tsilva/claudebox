@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Building claude-sandbox image..."
-container build -t claude-sandbox "$SCRIPT_DIR"
+docker build -t claude-sandbox "$SCRIPT_DIR"
 
 echo ""
 echo "Done! Image 'claude-sandbox' is ready."

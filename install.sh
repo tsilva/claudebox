@@ -8,10 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Shell function to add
 SHELL_FUNCTION='
-# Claude Sandbox - run Claude Code in an isolated container
+# Claude Sandbox - run Claude Code in an isolated Docker container
 claude-sandbox() {
   mkdir -p ~/.claude-sandbox/claude-config
-  container run -it \
+  docker run -it --rm \
     -v "$(pwd)":/workspace \
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \
     claude-sandbox "$@"

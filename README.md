@@ -3,18 +3,17 @@
 
   # claude-sandbox
 
-  [![macOS](https://img.shields.io/badge/macOS-26%2B-blue?logo=apple)](https://www.apple.com/macos/)
-  [![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-M1%2FM2%2FM3%2FM4-orange)](https://support.apple.com/en-us/116943)
+  [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-  **🤖 Run Claude Code with full autonomy inside an isolated container — let it code freely without touching your system**
+  **🤖 Run Claude Code with full autonomy inside an isolated Docker container — let it code freely without touching your system**
 
-  [Apple Container CLI](https://github.com/apple/container) · [Claude Code](https://claude.ai/code)
+  [Docker](https://docs.docker.com/get-docker/) · [Claude Code](https://claude.ai/code)
 </div>
 
 ## Overview
 
-claude-sandbox runs [Claude Code](https://claude.ai/code) with `--dangerously-skip-permissions` inside an isolated [Apple Container](https://github.com/apple/container) (lightweight Linux VM). This gives Claude full autonomy to install packages, run commands, and modify files — all safely contained without access to your host system.
+claude-sandbox runs [Claude Code](https://claude.ai/code) with `--dangerously-skip-permissions` inside an isolated Docker container. This gives Claude full autonomy to install packages, run commands, and modify files — all safely contained without access to your host system.
 
 ## Features
 
@@ -22,6 +21,7 @@ claude-sandbox runs [Claude Code](https://claude.ai/code) with `--dangerously-sk
 - ⚡ **Full autonomy** — No permission prompts; Claude can execute any command inside the sandbox
 - 📁 **Project mounting** — Your current directory is mounted as `/workspace` for Claude to work on
 - 🛠️ **Simple setup** — One install script adds a shell function you can run from any project
+- 🌍 **Cross-platform** — Works on any system with Docker (macOS, Linux, Windows with WSL)
 
 ## Quick Start
 
@@ -49,9 +49,7 @@ claude-sandbox
 
 | Requirement | Details |
 |-------------|---------|
-| **macOS** | 26 (Tahoe) or later |
-| **Chip** | Apple Silicon (M1/M2/M3/M4) |
-| **Container CLI** | [Apple Container](https://github.com/apple/container) installed |
+| **Docker** | [Docker Desktop](https://docs.docker.com/get-docker/) or Docker Engine installed and running |
 | **Claude Account** | Claude Pro or Max subscription |
 
 ## Commands
@@ -61,7 +59,7 @@ claude-sandbox
 | `./install.sh` | Build image and add `claude-sandbox` shell function |
 | `./build.sh` | Rebuild the container image |
 | `./uninstall.sh` | Remove the container image |
-| `./kill-containers.sh` | Force stop stuck containers (workaround for [apple/container#861](https://github.com/apple/container/issues/861)) |
+| `./kill-containers.sh` | Force stop any running claude-sandbox containers |
 
 ## Authentication
 
@@ -77,7 +75,7 @@ This opens a browser window for OAuth authentication. Your credentials are store
 
 ```mermaid
 graph LR
-    A[Your Project] -->|mount| B[Container]
+    A[Your Project] -->|mount| B[Docker Container]
     B --> C[Claude Code]
     C -->|full autonomy| D[Execute Commands]
     D -->|changes| A
@@ -88,19 +86,6 @@ graph LR
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
 4. All changes to `/workspace` are reflected in your project directory
 
-## Troubleshooting
-
-### Containers won't stop
-
-Apple Container CLI has a [known bug](https://github.com/apple/container/issues/861) where stop commands don't work. Use the included workaround:
-
-```bash
-./kill-containers.sh
-```
-
-This directly unloads the launchd services to force stop containers.
-
 ## License
 
 MIT
-</div>

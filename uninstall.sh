@@ -2,7 +2,7 @@
 set -e
 
 echo "Removing claude-sandbox image..."
-container image rm claude-sandbox 2>/dev/null || echo "Image not found, skipping"
+docker image rm claude-sandbox 2>/dev/null || echo "Image not found, skipping"
 
 echo ""
 echo "Note: The shell function in your .zshrc/.bashrc was not removed."
