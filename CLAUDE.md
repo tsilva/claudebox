@@ -4,31 +4,68 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerously-skip-permissions`) inside an isolated Docker container. It works on any system with Docker installed.
+claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerously-skip-permissions`) inside an isolated container. It supports both Docker and Apple Container CLI runtimes.
+
+## Directory Structure
+
+```
+claude-sandbox/
+├── Dockerfile              # Shared OCI-compatible image definition
+├── docker/                 # Docker runtime scripts
+│   ├── build.sh            # Build Docker image
+│   ├── install.sh          # Install shell function for Docker
+│   ├── kill-containers.sh  # Stop running Docker containers
+│   └── uninstall.sh        # Remove Docker image
+├── apple/                  # Apple Container CLI scripts (experimental)
+│   ├── build.sh            # Build Apple Container image
+│   ├── install.sh          # Install shell function for Apple Container
+│   ├── kill-containers.sh  # Stop running Apple containers
+│   └── uninstall.sh        # Remove Apple Container image
+├── CLAUDE.md
+└── README.md
+```
 
 ## Commands
 
+### Docker (Recommended)
+
 ```bash
 # Build/rebuild the container image
-./build.sh
+./docker/build.sh
 
 # Install (builds image + adds shell function to .zshrc/.bashrc)
-./install.sh
+./docker/install.sh
 
 # Remove the container image
-./uninstall.sh
+./docker/uninstall.sh
 
 # Force stop running containers
-./kill-containers.sh
+./docker/kill-containers.sh
+```
+
+### Apple Container CLI (Experimental)
+
+```bash
+# Build/rebuild the container image
+./apple/build.sh
+
+# Install (builds image + adds shell function to .zshrc/.bashrc)
+./apple/install.sh
+
+# Remove the container image
+./apple/uninstall.sh
+
+# Force stop running containers
+./apple/kill-containers.sh
 ```
 
 ## Architecture
 
-The project consists of shell scripts that wrap Docker:
+The project consists of shell scripts that wrap container runtimes:
 
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
-- **install.sh** - Builds the image and injects a `claude-sandbox` shell function that mounts the current directory as `/workspace`
-- **kill-containers.sh** - Stops all running claude-sandbox Docker containers
+- **docker/** - Scripts for Docker runtime, creates `claude-sandbox` shell function
+- **apple/** - Scripts for Apple Container CLI, creates `claude-sandbox-apple` shell function
 
 ### Key Implementation Details
 
@@ -42,11 +79,19 @@ The project consists of shell scripts that wrap Docker:
    - `NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt` - Uses system CA certs (Claude Code's bundled certs may be incomplete)
    - `NODE_OPTIONS="--dns-result-order=ipv4first"` - Avoids IPv6 routing issues in Docker
 
-4. **Container runtime**: Must use Docker, not Apple Container CLI (`container` command) - the latter has networking issues that cause ETIMEDOUT errors
+4. **Container runtimes**:
+   - **Docker** (recommended) - Stable, works on all platforms
+   - **Apple Container CLI** (experimental) - Requires macOS 26+ and Apple Silicon; may have networking limitations
 
 ## Requirements
 
-- [Docker Desktop](https://docs.docker.com/get-docker/) installed and running (not Apple Container CLI)
+### Docker (Recommended)
+- [Docker Desktop](https://docs.docker.com/get-docker/) installed and running
+
+### Apple Container CLI (Experimental)
+- macOS 26 (Tahoe) or later
+- Apple Silicon Mac (M1/M2/M3/M4)
+- Apple Container CLI: `brew install --cask container`
 
 ## Documentation
 
