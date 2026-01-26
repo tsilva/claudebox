@@ -17,13 +17,11 @@ set -e
 # Validate that all required configuration variables are set
 validate_config() {
   local missing=()
-  [ -z "${RUNTIME_CMD:-}" ] && missing+=("RUNTIME_CMD")
-  [ -z "${IMAGE_NAME:-}" ] && missing+=("IMAGE_NAME")
-  [ -z "${FUNCTION_NAME:-}" ] && missing+=("FUNCTION_NAME")
-  [ -z "${RUNTIME_NAME:-}" ] && missing+=("RUNTIME_NAME")
-  [ -z "${INSTALL_HINT:-}" ] && missing+=("INSTALL_HINT")
-  [ -z "${FUNCTION_COMMENT:-}" ] && missing+=("FUNCTION_COMMENT")
-  [ -z "${REPO_ROOT:-}" ] && missing+=("REPO_ROOT")
+  local required_vars=(RUNTIME_CMD IMAGE_NAME FUNCTION_NAME RUNTIME_NAME INSTALL_HINT FUNCTION_COMMENT REPO_ROOT)
+
+  for var in "${required_vars[@]}"; do
+    [ -z "${!var:-}" ] && missing+=("$var")
+  done
 
   if [ ${#missing[@]} -gt 0 ]; then
     echo "Error: Missing required configuration variables: ${missing[*]}" >&2
@@ -61,14 +59,8 @@ generate_shell_function() {
 # ${FUNCTION_COMMENT}
 ${FUNCTION_NAME}() {
   mkdir -p ~/.claude-sandbox/claude-config
-  # Atomic file creation to avoid race conditions
-  local json_file=~/.claude-sandbox/.claude.json
-  if [ ! -s "\$json_file" ]; then
-    local tmp_file
-    tmp_file=\$(mktemp)
-    echo '{}' > "\$tmp_file"
-    mv -n "\$tmp_file" "\$json_file" 2>/dev/null || rm -f "\$tmp_file"
-  fi
+  # Create config file atomically if missing
+  [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
 
   local entrypoint_args=()
   local cmd_args=("\$@")
@@ -81,33 +73,25 @@ ${FUNCTION_NAME}() {
     cmd_args=()
   fi
 
-  # Parse project config if it exists
+  # Parse project config for extra mounts
   if [ -f ".claude-sandbox.json" ]; then
     if ! command -v jq &>/dev/null; then
       echo "Warning: jq not installed, skipping .claude-sandbox.json mounts" >&2
       echo "Install with: brew install jq" >&2
+    elif ! jq -e 'type == "object"' .claude-sandbox.json &>/dev/null; then
+      echo "Warning: Invalid .claude-sandbox.json format" >&2
     else
-      local jq_error
-      if ! jq_error=\$(jq -e 'type == "object"' .claude-sandbox.json 2>&1); then
-        echo "Warning: Invalid .claude-sandbox.json: \$jq_error" >&2
-      fi
       while IFS= read -r mount_spec; do
-        if [ -n "\$mount_spec" ]; then
-          # Validate path exists and has no dangerous characters
-          local mount_path="\${mount_spec%%:*}"
-          if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
-            echo "Warning: Skipping mount with invalid characters: \$mount_path" >&2
-            continue
-          fi
-          if [ ! -e "\$mount_path" ]; then
-            echo "Warning: Mount path does not exist: \$mount_path" >&2
-            continue
-          fi
+        [ -z "\$mount_spec" ] && continue
+        local mount_path="\${mount_spec%%:*}"
+        if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
+          echo "Warning: Skipping mount with invalid characters: \$mount_path" >&2
+        elif [ ! -e "\$mount_path" ]; then
+          echo "Warning: Mount path does not exist: \$mount_path" >&2
+        else
           extra_mounts+=(-v "\$mount_spec")
         fi
-      done < <(jq -r '(.mounts // [])[] |
-        .path + ":" + .path + (if .readonly then ":ro" else "" end)' \\
-        .claude-sandbox.json 2>/dev/null)
+      done < <(jq -r '(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
     fi
   fi
 
@@ -192,25 +176,19 @@ do_uninstall() {
 
   detect_shell_rc
 
-  # Remove shell function if shell config exists
-  if [ -n "$SHELL_RC" ]; then
-    # Escape special regex characters in the comment for grep/sed
-    local escaped_comment
-    escaped_comment=$(printf '%s\n' "$FUNCTION_COMMENT" | sed 's/[[\.*^$()+?{|]/\\&/g')
-    if grep -q "^# $escaped_comment\$" "$SHELL_RC" 2>/dev/null; then
-      echo "Removing $FUNCTION_NAME function from $SHELL_RC..."
-      # Remove from comment line through closing brace (function end)
-      if ! sed -i.bak "/^# $escaped_comment\$/,/^}\$/d" "$SHELL_RC"; then
-        echo "Error: Failed to remove shell function from $SHELL_RC" >&2
-        exit 1
-      fi
-      rm -f "$SHELL_RC.bak"
-      echo "Shell function removed."
-    else
-      echo "Shell function not found in $SHELL_RC, skipping"
-    fi
+  # Remove shell function from shell config
+  # Escape special regex characters in the comment for grep/sed
+  local escaped_comment
+  escaped_comment=$(printf '%s\n' "$FUNCTION_COMMENT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+
+  if grep -q "^# $escaped_comment\$" "$SHELL_RC" 2>/dev/null; then
+    echo "Removing $FUNCTION_NAME function from $SHELL_RC..."
+    # Remove from comment line through closing brace (function end)
+    sed -i.bak "/^# $escaped_comment\$/,/^}\$/d" "$SHELL_RC"
+    rm -f "$SHELL_RC.bak"
+    echo "Shell function removed."
   else
-    echo "No shell config file found, skipping function removal"
+    echo "Shell function not found in $SHELL_RC, skipping"
   fi
 
   echo ""
@@ -226,26 +204,20 @@ do_kill_containers() {
 
   echo "Finding running $IMAGE_NAME containers..."
 
-  # Find containers using ancestor filter and verify exact image match
   local containers
-  containers=$("$RUNTIME_CMD" ps -q --filter "ancestor=$IMAGE_NAME" 2>/dev/null | while read -r id; do
-    # Verify this is exactly our image, not a derivative
-    local img
-    img=$("$RUNTIME_CMD" inspect --format '{{.Config.Image}}' "$id" 2>/dev/null)
-    [ "$img" = "$IMAGE_NAME" ] && echo "$id"
-  done)
+  containers=$("$RUNTIME_CMD" ps -q --filter "ancestor=$IMAGE_NAME" 2>/dev/null)
 
   if [ -z "$containers" ]; then
     echo "No $IMAGE_NAME containers found running."
-    exit 0
+    return 0
   fi
 
   echo "Found containers:"
-  echo "$containers" | sed 's/^/  - /'
+  echo "$containers" | while read -r id; do echo "  - $id"; done
   echo ""
 
   echo "Stopping containers..."
-  for c in $containers; do
+  echo "$containers" | while read -r c; do
     "$RUNTIME_CMD" stop "$c" 2>/dev/null || "$RUNTIME_CMD" kill "$c" 2>/dev/null || true
   done
 

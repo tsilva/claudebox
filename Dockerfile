@@ -1,15 +1,15 @@
 FROM debian:stable-slim
 
-LABEL org.opencontainers.image.title="claude-sandbox"
-LABEL org.opencontainers.image.description="Claude Code in an isolated container"
+LABEL org.opencontainers.image.title="claude-sandbox" \
+      org.opencontainers.image.description="Claude Code in an isolated container"
 
 RUN apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with UID 501 to match macOS user (for volume permissions)
-# claude-code refuses --dangerously-skip-permissions as root
-RUN useradd -m -s /bin/bash -u 501 claude
-RUN mkdir -p /opt/claude-code && chown claude:claude /opt/claude-code
-RUN mkdir -p /home/claude/.local/bin && chown -R claude:claude /home/claude/.local
+# Claude Code refuses --dangerously-skip-permissions as root
+RUN useradd -m -s /bin/bash -u 501 claude && \
+    mkdir -p /opt/claude-code /home/claude/.local/bin && \
+    chown -R claude:claude /opt/claude-code /home/claude/.local
 USER claude
 
 # Download Claude Code binary to /opt (separate from config at ~/.claude)
@@ -31,10 +31,12 @@ RUN ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
 
 WORKDIR /workspace
 
-# Force IPv4 for DNS to avoid Docker IPv6 routing issues
-# Use system CA certs (Claude Code's bundled certs may be incomplete)
-ENV PATH="/home/claude/.local/bin:/opt/claude-code:$PATH"
-ENV NODE_OPTIONS="--dns-result-order=ipv4first"
-ENV NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
+# Environment configuration:
+# - PATH: Include Claude Code binary locations
+# - NODE_OPTIONS: Force IPv4 DNS to avoid Docker IPv6 routing issues
+# - NODE_EXTRA_CA_CERTS: Use system CA certs (Claude Code's bundled certs may be incomplete)
+ENV PATH="/home/claude/.local/bin:/opt/claude-code:$PATH" \
+    NODE_OPTIONS="--dns-result-order=ipv4first" \
+    NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
 
 ENTRYPOINT ["claude", "--dangerously-skip-permissions"]
