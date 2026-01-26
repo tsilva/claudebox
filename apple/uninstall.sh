@@ -1,47 +1,16 @@
 #!/bin/bash
 set -e
 
-# Prompt for confirmation
-read -p "This will remove the claude-sandbox-apple image and shell function. Continue? [y/N] " confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-  echo "Uninstall cancelled."
-  exit 0
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Check if Apple Container CLI is available
-if ! command -v container &>/dev/null; then
-  echo "Error: Apple Container CLI is not installed or not in PATH"
-  exit 1
-fi
+RUNTIME_CMD="container"
+IMAGE_NAME="claude-sandbox-apple"
+FUNCTION_NAME="claude-sandbox-apple"
+RUNTIME_NAME="Apple Container CLI"
+INSTALL_HINT="Please install with: brew install --cask container
+Requires macOS 26+ and Apple Silicon"
+FUNCTION_COMMENT="Claude Sandbox (Apple Container) - run Claude Code in an isolated container"
 
-echo "Removing claude-sandbox-apple image..."
-container image rm claude-sandbox-apple 2>/dev/null || echo "Image not found, skipping"
-
-# Detect shell config file
-if [ -f "$HOME/.zshrc" ]; then
-  SHELL_RC="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-  SHELL_RC="$HOME/.bashrc"
-else
-  SHELL_RC=""
-fi
-
-# Remove shell function if shell config exists
-if [ -n "$SHELL_RC" ]; then
-  if grep -q "^# Claude Sandbox (Apple Container) - run Claude Code in an isolated container$" "$SHELL_RC" 2>/dev/null; then
-    echo "Removing claude-sandbox-apple function from $SHELL_RC..."
-    # Remove from comment line through closing brace (function end)
-    sed -i.bak '/^# Claude Sandbox (Apple Container) - run Claude Code in an isolated container$/,/^}$/d' "$SHELL_RC"
-    rm -f "$SHELL_RC.bak"
-    echo "Shell function removed."
-  else
-    echo "Shell function not found in $SHELL_RC, skipping"
-  fi
-else
-  echo "No shell config file found, skipping function removal"
-fi
-
-echo ""
-echo "Uninstall complete."
-echo ""
-echo "Run: source $SHELL_RC"
+source "$REPO_ROOT/scripts/common.sh"
+do_uninstall

@@ -11,12 +11,15 @@ claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerousl
 ```
 claude-sandbox/
 ├── Dockerfile              # Shared OCI-compatible image definition
-├── docker/                 # Docker runtime scripts
+├── .dockerignore           # Files excluded from build context
+├── scripts/
+│   └── common.sh           # Shared functions for all runtime scripts
+├── docker/                 # Docker runtime scripts (thin wrappers)
 │   ├── build.sh            # Build Docker image
 │   ├── install.sh          # Install shell function for Docker
 │   ├── kill-containers.sh  # Stop running Docker containers
 │   └── uninstall.sh        # Remove Docker image
-├── apple/                  # Apple Container CLI scripts (experimental)
+├── apple/                  # Apple Container CLI scripts (thin wrappers)
 │   ├── build.sh            # Build Apple Container image
 │   ├── install.sh          # Install shell function for Apple Container
 │   ├── kill-containers.sh  # Stop running Apple containers
@@ -102,8 +105,16 @@ Projects can define additional mounts via `.claude-sandbox.json` in the project 
 The project consists of shell scripts that wrap container runtimes:
 
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
-- **docker/** - Scripts for Docker runtime, creates `claude-sandbox` shell function
-- **apple/** - Scripts for Apple Container CLI, creates `claude-sandbox-apple` shell function
+- **scripts/common.sh** - Shared functions used by all wrapper scripts (build, install, uninstall, kill logic)
+- **docker/** - Thin wrapper scripts for Docker runtime, creates `claude-sandbox` shell function
+- **apple/** - Thin wrapper scripts for Apple Container CLI, creates `claude-sandbox-apple` shell function
+
+### Script Architecture
+
+The `docker/` and `apple/` scripts are thin wrappers (~15 lines each) that:
+1. Set configuration variables (`RUNTIME_CMD`, `IMAGE_NAME`, `FUNCTION_NAME`, etc.)
+2. Source `scripts/common.sh`
+3. Call the appropriate function (`do_build`, `do_install`, `do_uninstall`, or `do_kill_containers`)
 
 ### Key Implementation Details
 

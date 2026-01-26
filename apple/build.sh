@@ -2,18 +2,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Check if Apple Container CLI is available
-if ! command -v container &>/dev/null; then
-  echo "Error: Apple Container CLI is not installed or not in PATH"
-  echo "Please install with: brew install --cask container"
-  echo "Requires macOS 26+ and Apple Silicon"
-  exit 1
-fi
+RUNTIME_CMD="container"
+IMAGE_NAME="claude-sandbox-apple"
+FUNCTION_NAME="claude-sandbox-apple"
+RUNTIME_NAME="Apple Container CLI"
+INSTALL_HINT="Please install with: brew install --cask container
+Requires macOS 26+ and Apple Silicon"
+FUNCTION_COMMENT="Claude Sandbox (Apple Container) - run Claude Code in an isolated container"
 
-echo "Building claude-sandbox-apple image..."
-container build -t claude-sandbox-apple "$SCRIPT_DIR/.."
-
-echo ""
-echo "Done! Image 'claude-sandbox-apple' is ready."
-echo "Run 'claude-sandbox-apple' from any directory to start."
+source "$REPO_ROOT/scripts/common.sh"
+do_build

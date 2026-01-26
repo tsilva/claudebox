@@ -175,6 +175,28 @@ graph LR
 4. All changes to the mounted directory are reflected in your project
 5. Optional: `.claude-sandbox.json` adds extra mounts for data directories
 
+## Project Structure
+
+```
+claude-sandbox/
+├── Dockerfile              # Shared OCI-compatible image definition
+├── scripts/
+│   └── common.sh           # Shared functions for all runtime scripts
+├── docker/                 # Docker runtime scripts
+│   ├── build.sh
+│   ├── install.sh
+│   ├── uninstall.sh
+│   └── kill-containers.sh
+├── apple/                  # Apple Container CLI scripts
+│   ├── build.sh
+│   ├── install.sh
+│   ├── uninstall.sh
+│   └── kill-containers.sh
+└── README.md
+```
+
+The `docker/` and `apple/` scripts are thin wrappers (~15 lines each) that set configuration variables and delegate to shared functions in `scripts/common.sh`. This ensures consistent behavior across runtimes while minimizing code duplication.
+
 ## Troubleshooting
 
 ### Docker: "ETIMEDOUT" or "Unable to connect to Anthropic services"

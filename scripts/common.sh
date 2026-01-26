@@ -1,0 +1,254 @@
+#!/bin/bash
+#
+# common.sh - Shared functions for claude-sandbox Docker and Apple Container scripts
+#
+# Required variables (must be set by wrapper scripts before sourcing):
+#   RUNTIME_CMD      - Command to run (docker or container)
+#   IMAGE_NAME       - Container image name
+#   FUNCTION_NAME    - Shell function name
+#   RUNTIME_NAME     - Human-readable runtime name
+#   INSTALL_HINT     - Installation instructions for missing runtime
+#   FUNCTION_COMMENT - Comment describing the shell function
+#   REPO_ROOT        - Path to repository root
+#
+
+set -e
+
+# Validate that all required configuration variables are set
+validate_config() {
+  local missing=()
+  [ -z "${RUNTIME_CMD:-}" ] && missing+=("RUNTIME_CMD")
+  [ -z "${IMAGE_NAME:-}" ] && missing+=("IMAGE_NAME")
+  [ -z "${FUNCTION_NAME:-}" ] && missing+=("FUNCTION_NAME")
+  [ -z "${RUNTIME_NAME:-}" ] && missing+=("RUNTIME_NAME")
+  [ -z "${INSTALL_HINT:-}" ] && missing+=("INSTALL_HINT")
+  [ -z "${FUNCTION_COMMENT:-}" ] && missing+=("FUNCTION_COMMENT")
+  [ -z "${REPO_ROOT:-}" ] && missing+=("REPO_ROOT")
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "Error: Missing required configuration variables: ${missing[*]}" >&2
+    exit 1
+  fi
+}
+
+# Check if the runtime CLI is available
+check_runtime() {
+  if ! command -v "$RUNTIME_CMD" &>/dev/null; then
+    echo "Error: $RUNTIME_NAME is not installed or not in PATH"
+    echo "$INSTALL_HINT"
+    exit 1
+  fi
+}
+
+# Detect shell config file (.zshrc or .bashrc)
+# Sets SHELL_RC variable
+detect_shell_rc() {
+  if [ -f "$HOME/.zshrc" ]; then
+    SHELL_RC="$HOME/.zshrc"
+  elif [ -f "$HOME/.bashrc" ]; then
+    SHELL_RC="$HOME/.bashrc"
+  else
+    SHELL_RC="$HOME/.zshrc"
+    echo "Warning: Neither .zshrc nor .bashrc found, creating $SHELL_RC"
+    echo "If you use a different shell, add the function to your shell config manually."
+  fi
+}
+
+# Generate the shell function definition
+# Variables used: FUNCTION_COMMENT, FUNCTION_NAME, RUNTIME_CMD, IMAGE_NAME
+generate_shell_function() {
+  cat << FUNC_EOF
+# ${FUNCTION_COMMENT}
+${FUNCTION_NAME}() {
+  mkdir -p ~/.claude-sandbox/claude-config
+  # Atomic file creation to avoid race conditions
+  local json_file=~/.claude-sandbox/.claude.json
+  if [ ! -s "\$json_file" ]; then
+    local tmp_file
+    tmp_file=\$(mktemp)
+    echo '{}' > "\$tmp_file"
+    mv -n "\$tmp_file" "\$json_file" 2>/dev/null || rm -f "\$tmp_file"
+  fi
+
+  local entrypoint_args=()
+  local cmd_args=("\$@")
+  local extra_mounts=()
+  local workdir
+  workdir="\$(pwd)"
+
+  if [ "\${1:-}" = "shell" ]; then
+    entrypoint_args=(--entrypoint /bin/bash)
+    cmd_args=()
+  fi
+
+  # Parse project config if it exists
+  if [ -f ".claude-sandbox.json" ]; then
+    if ! command -v jq &>/dev/null; then
+      echo "Warning: jq not installed, skipping .claude-sandbox.json mounts" >&2
+      echo "Install with: brew install jq" >&2
+    else
+      local jq_error
+      if ! jq_error=\$(jq -e 'type == "object"' .claude-sandbox.json 2>&1); then
+        echo "Warning: Invalid .claude-sandbox.json: \$jq_error" >&2
+      fi
+      while IFS= read -r mount_spec; do
+        if [ -n "\$mount_spec" ]; then
+          # Validate path exists and has no dangerous characters
+          local mount_path="\${mount_spec%%:*}"
+          if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
+            echo "Warning: Skipping mount with invalid characters: \$mount_path" >&2
+            continue
+          fi
+          if [ ! -e "\$mount_path" ]; then
+            echo "Warning: Mount path does not exist: \$mount_path" >&2
+            continue
+          fi
+          extra_mounts+=(-v "\$mount_spec")
+        fi
+      done < <(jq -r '(.mounts // [])[] |
+        .path + ":" + .path + (if .readonly then ":ro" else "" end)' \\
+        .claude-sandbox.json 2>/dev/null)
+    fi
+  fi
+
+  ${RUNTIME_CMD} run -it --rm \\
+    --workdir "\$workdir" \\
+    -v "\$workdir:\$workdir" \\
+    -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\
+    -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \\
+    "\${extra_mounts[@]}" \\
+    "\${entrypoint_args[@]}" \\
+    ${IMAGE_NAME} "\${cmd_args[@]}"
+}
+FUNC_EOF
+}
+
+# Build container image
+do_build() {
+  validate_config
+  check_runtime
+
+  echo "Building $IMAGE_NAME image..."
+  "$RUNTIME_CMD" build -t "$IMAGE_NAME" "$REPO_ROOT"
+
+  echo ""
+  echo "Done! Image '$IMAGE_NAME' is ready."
+  echo "Run '$FUNCTION_NAME' from any directory to start."
+}
+
+# Install shell function
+do_install() {
+  validate_config
+  check_runtime
+
+  # Build the image first
+  do_build
+
+  detect_shell_rc
+
+  # Generate the shell function
+  local shell_function
+  shell_function=$(generate_shell_function)
+
+  # Check if already installed (use precise pattern to avoid matching comments)
+  if grep -q "^${FUNCTION_NAME}()[[:space:]]*{" "$SHELL_RC" 2>/dev/null; then
+    echo "$FUNCTION_NAME function already exists in $SHELL_RC"
+    echo "Please manually update the function or remove it and re-run install.sh"
+  else
+    echo "$shell_function" >> "$SHELL_RC"
+    echo "Added $FUNCTION_NAME function to $SHELL_RC"
+  fi
+
+  echo ""
+  echo "Installation complete!"
+  echo ""
+  echo "Run: source $SHELL_RC"
+  echo ""
+  echo "First-time setup (authenticate with Claude subscription):"
+  echo "  $FUNCTION_NAME login"
+  echo ""
+  echo "Then from any project directory:"
+  echo "  cd <your-project> && $FUNCTION_NAME"
+  echo ""
+  echo "To inspect the sandbox environment:"
+  echo "  $FUNCTION_NAME shell"
+}
+
+# Uninstall image and shell function
+do_uninstall() {
+  validate_config
+
+  # Prompt for confirmation
+  read -p "This will remove the $IMAGE_NAME image and shell function. Continue? [y/N] " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "Uninstall cancelled."
+    exit 0
+  fi
+
+  check_runtime
+
+  echo "Removing $IMAGE_NAME image..."
+  "$RUNTIME_CMD" image rm "$IMAGE_NAME" 2>/dev/null || echo "Image not found, skipping"
+
+  detect_shell_rc
+
+  # Remove shell function if shell config exists
+  if [ -n "$SHELL_RC" ]; then
+    # Escape special regex characters in the comment for grep/sed
+    local escaped_comment
+    escaped_comment=$(printf '%s\n' "$FUNCTION_COMMENT" | sed 's/[[\.*^$()+?{|]/\\&/g')
+    if grep -q "^# $escaped_comment\$" "$SHELL_RC" 2>/dev/null; then
+      echo "Removing $FUNCTION_NAME function from $SHELL_RC..."
+      # Remove from comment line through closing brace (function end)
+      if ! sed -i.bak "/^# $escaped_comment\$/,/^}\$/d" "$SHELL_RC"; then
+        echo "Error: Failed to remove shell function from $SHELL_RC" >&2
+        exit 1
+      fi
+      rm -f "$SHELL_RC.bak"
+      echo "Shell function removed."
+    else
+      echo "Shell function not found in $SHELL_RC, skipping"
+    fi
+  else
+    echo "No shell config file found, skipping function removal"
+  fi
+
+  echo ""
+  echo "Uninstall complete."
+  echo ""
+  echo "Run: source $SHELL_RC"
+}
+
+# Stop all running containers for this image
+do_kill_containers() {
+  validate_config
+  check_runtime
+
+  echo "Finding running $IMAGE_NAME containers..."
+
+  # Find containers using ancestor filter and verify exact image match
+  local containers
+  containers=$("$RUNTIME_CMD" ps -q --filter "ancestor=$IMAGE_NAME" 2>/dev/null | while read -r id; do
+    # Verify this is exactly our image, not a derivative
+    local img
+    img=$("$RUNTIME_CMD" inspect --format '{{.Config.Image}}' "$id" 2>/dev/null)
+    [ "$img" = "$IMAGE_NAME" ] && echo "$id"
+  done)
+
+  if [ -z "$containers" ]; then
+    echo "No $IMAGE_NAME containers found running."
+    exit 0
+  fi
+
+  echo "Found containers:"
+  echo "$containers" | sed 's/^/  - /'
+  echo ""
+
+  echo "Stopping containers..."
+  for c in $containers; do
+    "$RUNTIME_CMD" stop "$c" 2>/dev/null || "$RUNTIME_CMD" kill "$c" 2>/dev/null || true
+  done
+
+  echo ""
+  echo "All $IMAGE_NAME containers stopped."
+}
