@@ -183,11 +183,13 @@ claude-sandbox/
 ├── scripts/
 │   └── common.sh           # Shared functions for all runtime scripts
 ├── docker/                 # Docker runtime scripts
+│   ├── config.sh           # Docker-specific configuration
 │   ├── build.sh
 │   ├── install.sh
 │   ├── uninstall.sh
 │   └── kill-containers.sh
 ├── apple/                  # Apple Container CLI scripts
+│   ├── config.sh           # Apple Container-specific configuration
 │   ├── build.sh
 │   ├── install.sh
 │   ├── uninstall.sh

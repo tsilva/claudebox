@@ -15,11 +15,13 @@ claude-sandbox/
 ├── scripts/
 │   └── common.sh           # Shared functions for all runtime scripts
 ├── docker/                 # Docker runtime scripts (thin wrappers)
+│   ├── config.sh           # Docker-specific configuration variables
 │   ├── build.sh            # Build Docker image
 │   ├── install.sh          # Install shell function for Docker
 │   ├── kill-containers.sh  # Stop running Docker containers
 │   └── uninstall.sh        # Remove Docker image
 ├── apple/                  # Apple Container CLI scripts (thin wrappers)
+│   ├── config.sh           # Apple Container-specific configuration variables
 │   ├── build.sh            # Build Apple Container image
 │   ├── install.sh          # Install shell function for Apple Container
 │   ├── kill-containers.sh  # Stop running Apple containers

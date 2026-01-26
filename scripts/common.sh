@@ -23,7 +23,7 @@ validate_config() {
     [ -z "${!var:-}" ] && missing+=("$var")
   done
 
-  if [ ${#missing[@]} -gt 0 ]; then
+  if [ "${#missing[@]}" -gt 0 ]; then
     echo "Error: Missing required configuration variables: ${missing[*]}" >&2
     exit 1
   fi
@@ -59,14 +59,12 @@ generate_shell_function() {
 # ${FUNCTION_COMMENT}
 ${FUNCTION_NAME}() {
   mkdir -p ~/.claude-sandbox/claude-config
-  # Create config file atomically if missing
   [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
 
   local entrypoint_args=()
   local cmd_args=("\$@")
   local extra_mounts=()
-  local workdir
-  workdir="\$(pwd)"
+  local workdir="\$(pwd)"
 
   if [ "\${1:-}" = "shell" ]; then
     entrypoint_args=(--entrypoint /bin/bash)
@@ -177,14 +175,10 @@ do_uninstall() {
   detect_shell_rc
 
   # Remove shell function from shell config
-  # Escape special regex characters in the comment for grep/sed
-  local escaped_comment
-  escaped_comment=$(printf '%s\n' "$FUNCTION_COMMENT" | sed 's/[[\.*^$()+?{|]/\\&/g')
-
-  if grep -q "^# $escaped_comment\$" "$SHELL_RC" 2>/dev/null; then
+  if grep -q "^${FUNCTION_NAME}()" "$SHELL_RC" 2>/dev/null; then
     echo "Removing $FUNCTION_NAME function from $SHELL_RC..."
-    # Remove from comment line through closing brace (function end)
-    sed -i.bak "/^# $escaped_comment\$/,/^}\$/d" "$SHELL_RC"
+    # Remove the comment line preceding the function and the function itself
+    sed -i.bak "/^# .*[Cc]laude [Ss]andbox/,/^}/d" "$SHELL_RC"
     rm -f "$SHELL_RC.bak"
     echo "Shell function removed."
   else
@@ -213,12 +207,14 @@ do_kill_containers() {
   fi
 
   echo "Found containers:"
-  echo "$containers" | while read -r id; do echo "  - $id"; done
+  for id in $containers; do
+    echo "  - $id"
+  done
   echo ""
 
   echo "Stopping containers..."
-  echo "$containers" | while read -r c; do
-    "$RUNTIME_CMD" stop "$c" 2>/dev/null || "$RUNTIME_CMD" kill "$c" 2>/dev/null || true
+  for id in $containers; do
+    "$RUNTIME_CMD" stop "$id" 2>/dev/null || "$RUNTIME_CMD" kill "$id" 2>/dev/null || true
   done
 
   echo ""
