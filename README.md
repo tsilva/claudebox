@@ -18,9 +18,10 @@ claude-sandbox runs [Claude Code](https://claude.ai/code) with `--dangerously-sk
 
 ## Features
 
-- **Isolated execution** — Claude runs in a container with no access to your host filesystem (except the mounted project)
+- **Isolated execution** — Claude runs in a container with no access to your host filesystem (except mounted paths)
 - **Full autonomy** — No permission prompts; Claude can execute any command inside the sandbox
-- **Project mounting** — Your current directory is mounted as `/workspace` for Claude to work on
+- **Same-path mounting** — Your project directory is mounted at its actual path, so file paths work identically inside and outside the container
+- **Per-project configuration** — Define additional mounts via `.claude-sandbox.json` for data directories, output folders, etc.
 - **Simple setup** — One install script adds a shell function you can run from any project
 - **Multiple runtimes** — Choose Docker (cross-platform) or Apple Container CLI (macOS 26+)
 
@@ -79,6 +80,39 @@ claude-sandbox-apple
 | **Docker** (Recommended) | [Docker Desktop](https://docs.docker.com/get-docker/) on macOS, Linux, or Windows with WSL |
 | **Apple Container** (Experimental) | macOS 26+, Apple Silicon (M1/M2/M3/M4), `brew install --cask container` |
 
+**Optional:** `jq` for per-project configuration support (`brew install jq`)
+
+## Per-Project Configuration
+
+Create a `.claude-sandbox.json` file in your project root to mount additional directories:
+
+```json
+{
+  "mounts": [
+    { "path": "/Volumes/Data/input", "readonly": true },
+    { "path": "/Volumes/Data/output" }
+  ]
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `path` | Yes | Absolute host path (mounted to the same path inside container) |
+| `readonly` | No | If `true`, mount is read-only (default: `false`) |
+
+**Example use case:** A data processing project that reads from an external drive and writes results:
+
+```json
+{
+  "mounts": [
+    { "path": "/Volumes/ExternalDrive/datasets", "readonly": true },
+    { "path": "/Users/me/outputs" }
+  ]
+}
+```
+
+**Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts are silently skipped and the sandbox runs normally.
+
 ## Commands
 
 ### Docker
@@ -110,20 +144,36 @@ claude-sandbox-apple login  # Apple Container
 
 This opens a browser window for OAuth authentication. Your credentials are stored in `~/.claude-sandbox/` and persist across all container sessions — you only need to log in once.
 
+## Usage
+
+```bash
+# Run Claude Code in the sandbox
+claude-sandbox
+
+# Pass arguments to Claude (e.g., login)
+claude-sandbox login
+
+# Drop into a bash shell to inspect the sandbox environment
+claude-sandbox shell
+```
+
+The `shell` argument is useful for debugging or exploring what tools and files are available inside the container.
+
 ## How It Works
 
 ```mermaid
 graph LR
-    A[Your Project] -->|mount| B[Container]
+    A[Your Project] -->|mount at same path| B[Container]
     B --> C[Claude Code]
     C -->|full autonomy| D[Execute Commands]
     D -->|changes| A
 ```
 
 1. **install.sh** builds an OCI-compatible image with Claude Code pre-installed
-2. Running `claude-sandbox` (or `claude-sandbox-apple`) starts a container with your current directory mounted
+2. Running `claude-sandbox` starts a container with your current directory mounted at its actual path
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
-4. All changes to `/workspace` are reflected in your project directory
+4. All changes to the mounted directory are reflected in your project
+5. Optional: `.claude-sandbox.json` adds extra mounts for data directories
 
 ## Troubleshooting
 
@@ -151,6 +201,12 @@ echo '{}' > ~/.claude-sandbox/.claude.json
 Make sure both config paths are mounted. Check your shell function includes:
 - `-v ~/.claude-sandbox/claude-config:/home/claude/.claude`
 - `-v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json`
+
+### Per-project mounts not working
+
+1. Verify `jq` is installed: `which jq` or `brew install jq`
+2. Validate your config: `jq . .claude-sandbox.json`
+3. Check paths are absolute (start with `/`)
 
 ### Apple Container: Networking issues
 

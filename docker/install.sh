@@ -11,12 +11,36 @@ SHELL_FUNCTION='
 # Claude Sandbox - run Claude Code in an isolated Docker container
 claude-sandbox() {
   mkdir -p ~/.claude-sandbox/claude-config
-  [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
+  [ -s ~/.claude-sandbox/.claude.json ] || echo '\''{}'\'' > ~/.claude-sandbox/.claude.json
+
+  local entrypoint_args=()
+  local cmd_args=("$@")
+  local extra_mounts=()
+  local workdir
+  workdir="$(pwd)"
+
+  if [ "${1:-}" = "shell" ]; then
+    entrypoint_args=(--entrypoint /bin/bash)
+    cmd_args=()
+  fi
+
+  # Parse project config if it exists
+  if [ -f ".claude-sandbox.json" ] && command -v jq &>/dev/null; then
+    while IFS= read -r mount_spec; do
+      [ -n "$mount_spec" ] && extra_mounts+=(-v "$mount_spec")
+    done < <(jq -r '\''(.mounts // [])[] |
+      .path + ":" + .path + (if .readonly then ":ro" else "" end)'\'' \
+      .claude-sandbox.json 2>/dev/null)
+  fi
+
   docker run -it --rm \
-    -v "$(pwd)":/workspace \
+    --workdir "$workdir" \
+    -v "$workdir:$workdir" \
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \
     -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \
-    claude-sandbox "$@"
+    "${extra_mounts[@]}" \
+    "${entrypoint_args[@]}" \
+    claude-sandbox "${cmd_args[@]}"
 }'
 
 # Detect shell config file
@@ -47,3 +71,6 @@ echo "  claude-sandbox login"
 echo ""
 echo "Then from any project directory:"
 echo "  cd <your-project> && claude-sandbox"
+echo ""
+echo "To inspect the sandbox environment:"
+echo "  claude-sandbox shell"

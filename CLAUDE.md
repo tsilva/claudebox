@@ -59,6 +59,44 @@ claude-sandbox/
 ./apple/kill-containers.sh
 ```
 
+## Usage
+
+After installation, the shell functions accept the following arguments:
+
+```bash
+# Run Claude Code in the sandbox
+claude-sandbox
+
+# Pass arguments to Claude (e.g., login)
+claude-sandbox login
+
+# Drop into a bash shell to inspect the sandbox environment
+claude-sandbox shell
+```
+
+## Per-Project Configuration
+
+Projects can define additional mounts via `.claude-sandbox.json` in the project root:
+
+```json
+{
+  "mounts": [
+    { "path": "/Volumes/Data/input", "readonly": true },
+    { "path": "/Volumes/Data/output" }
+  ]
+}
+```
+
+**Fields:**
+- `path` (required): Absolute host path, mounted to the same path inside the container
+- `readonly` (optional): If `true`, mount is read-only (default: `false`)
+
+**Requirements:**
+- `jq` must be installed for config parsing (`brew install jq`)
+- If `jq` is missing or config is invalid, extra mounts are silently skipped
+
+**Path behavior:** The working directory is mounted at its actual path (e.g., `/Users/foo/project` inside and outside). This allows file paths to work identically in both environments.
+
 ## Architecture
 
 The project consists of shell scripts that wrap container runtimes:
