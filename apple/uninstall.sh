@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Check if Apple Container CLI is available
+if ! command -v container &>/dev/null; then
+  echo "Error: Apple Container CLI is not installed or not in PATH"
+  exit 1
+fi
+
 echo "Removing claude-sandbox-apple image..."
 container image rm claude-sandbox-apple 2>/dev/null || echo "Image not found, skipping"
 

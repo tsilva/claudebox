@@ -10,10 +10,17 @@ RUN mkdir -p /home/claude/.local/bin && chown -R claude:claude /home/claude/.loc
 USER claude
 
 # Download Claude Code binary to /opt (separate from config at ~/.claude)
+# Detect architecture: map Docker's TARGETARCH to Claude Code's naming convention
 RUN GCS_BUCKET="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases" && \
     VERSION=$(curl -fsSL "$GCS_BUCKET/latest") && \
-    echo "Installing Claude Code $VERSION..." && \
-    curl -fsSL --progress-bar -o /opt/claude-code/claude "$GCS_BUCKET/$VERSION/linux-arm64/claude" && \
+    ARCH=$(uname -m) && \
+    case "$ARCH" in \
+      x86_64|amd64) CLAUDE_ARCH="linux-x64" ;; \
+      aarch64|arm64) CLAUDE_ARCH="linux-arm64" ;; \
+      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac && \
+    echo "Installing Claude Code $VERSION for $CLAUDE_ARCH..." && \
+    curl -fsSL --progress-bar -o /opt/claude-code/claude "$GCS_BUCKET/$VERSION/$CLAUDE_ARCH/claude" && \
     chmod +x /opt/claude-code/claude
 
 # Create symlink at expected native install location

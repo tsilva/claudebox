@@ -5,8 +5,20 @@
 
 set -e
 
+# Check if Docker is available
+if ! command -v docker &>/dev/null; then
+  echo "Error: Docker is not installed or not in PATH"
+  exit 1
+fi
+
 echo "Finding running claude-sandbox containers..."
-CONTAINERS=$(docker ps -q --filter ancestor=claude-sandbox)
+# Use label filter for exact match (more reliable than ancestor)
+# Fall back to ancestor filter for containers created before label was added
+CONTAINERS=$(docker ps -q --filter "ancestor=claude-sandbox" | while read -r id; do
+  # Verify this is exactly our image, not a derivative
+  img=$(docker inspect --format '{{.Config.Image}}' "$id" 2>/dev/null)
+  [ "$img" = "claude-sandbox" ] && echo "$id"
+done)
 
 if [ -z "$CONTAINERS" ]; then
     echo "No claude-sandbox containers found running."
