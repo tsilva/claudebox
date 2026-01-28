@@ -102,6 +102,33 @@ Projects can define additional mounts via `.claude-sandbox.json` in the project 
 
 **Path behavior:** The working directory is mounted at its actual path (e.g., `/Users/foo/project` inside and outside). This allows file paths to work identically in both environments.
 
+### Multi-Profile Configuration
+
+Define multiple named profiles for different workflows:
+
+```json
+{
+  "dev": {
+    "mounts": [{ "path": "/data/dev" }]
+  },
+  "prod": {
+    "mounts": [{ "path": "/data/prod", "readonly": true }]
+  }
+}
+```
+
+**Profile selection:**
+- Single profile: used automatically
+- Multiple profiles: `--profile <name>` or `-p <name>`
+- No flag with multiple profiles: interactive prompt
+
+**Usage:**
+```bash
+claude-sandbox --profile dev      # Use specific profile
+claude-sandbox -p prod            # Short form
+claude-sandbox --profile dev login  # Profile + args to Claude
+```
+
 ## Architecture
 
 The project consists of shell scripts that wrap container runtimes:

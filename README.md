@@ -113,6 +113,35 @@ Create a `.claude-sandbox.json` file in your project root to mount additional di
 
 **Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts are silently skipped and the sandbox runs normally.
 
+### Multi-Profile Configuration
+
+Define multiple named profiles for different workflows in the same project:
+
+```json
+{
+  "dev": {
+    "mounts": [{ "path": "/data/dev" }]
+  },
+  "prod": {
+    "mounts": [{ "path": "/data/prod", "readonly": true }]
+  }
+}
+```
+
+**Profile selection behavior:**
+- **Single profile**: Used automatically (no flag needed)
+- **Multiple profiles with `--profile`**: Use specified profile
+- **Multiple profiles without flag**: Interactive numbered menu
+
+**Example use case:** A project with separate development and production data directories:
+
+```bash
+claude-sandbox --profile dev   # Mounts /data/dev read-write
+claude-sandbox -p prod         # Mounts /data/prod read-only
+```
+
+**Note:** The legacy format (`{"mounts": [...]}` at root level) is still fully supported for backward compatibility.
+
 ## Commands
 
 ### Docker
@@ -155,6 +184,11 @@ claude-sandbox login
 
 # Drop into a bash shell to inspect the sandbox environment
 claude-sandbox shell
+
+# With profiles (see Per-Project Configuration)
+claude-sandbox --profile dev     # Use specific profile
+claude-sandbox -p prod           # Short form
+claude-sandbox --profile dev login  # Profile + args to Claude
 ```
 
 The `shell` argument is useful for debugging or exploring what tools and files are available inside the container.

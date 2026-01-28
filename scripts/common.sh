@@ -62,13 +62,28 @@ ${FUNCTION_NAME}() {
   [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
 
   local entrypoint_args=()
-  local cmd_args=("\$@")
   local extra_mounts=()
   local workdir="\$(pwd)"
+  local profile_name=""
+  local cmd_args=()
+  local skip_next=false
 
-  if [ "\${1:-}" = "shell" ]; then
+  # Extract --profile/-p flag, pass remaining args to Claude
+  for arg in "\$@"; do
+    if [ "\$skip_next" = true ]; then
+      profile_name="\$arg"
+      skip_next=false
+    elif [ "\$arg" = "--profile" ] || [ "\$arg" = "-p" ]; then
+      skip_next=true
+    else
+      cmd_args+=("\$arg")
+    fi
+  done
+
+  # Handle "shell" command (check cmd_args, not original \$@)
+  if [ "\${cmd_args[0]:-}" = "shell" ]; then
     entrypoint_args=(--entrypoint /bin/bash)
-    cmd_args=()
+    cmd_args=("\${cmd_args[@]:1}")
   fi
 
   # Parse project config for extra mounts
@@ -79,17 +94,80 @@ ${FUNCTION_NAME}() {
     elif ! jq -e 'type == "object"' .claude-sandbox.json &>/dev/null; then
       echo "Warning: Invalid .claude-sandbox.json format" >&2
     else
-      while IFS= read -r mount_spec; do
-        [ -z "\$mount_spec" ] && continue
-        local mount_path="\${mount_spec%%:*}"
-        if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
-          echo "Warning: Skipping mount with invalid characters: \$mount_path" >&2
-        elif [ ! -e "\$mount_path" ]; then
-          echo "Warning: Mount path does not exist: \$mount_path" >&2
-        else
-          extra_mounts+=(-v "\$mount_spec")
+      local is_legacy
+      is_legacy=\$(jq -e 'has("mounts")' .claude-sandbox.json 2>/dev/null && echo "yes" || echo "no")
+
+      if [ "\$is_legacy" = "yes" ]; then
+        # Legacy format - mounts at root level
+        while IFS= read -r mount_spec; do
+          [ -z "\$mount_spec" ] && continue
+          local mount_path="\${mount_spec%%:*}"
+          if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
+            echo "Warning: Skipping mount with invalid characters" >&2
+          elif [ ! -e "\$mount_path" ]; then
+            echo "Warning: Mount path does not exist: \$mount_path" >&2
+          else
+            extra_mounts+=(-v "\$mount_spec")
+          fi
+        done < <(jq -r '(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+      else
+        # Profile-based format - each root key is a profile name
+        local profile_count
+        profile_count=\$(jq 'keys | length' .claude-sandbox.json 2>/dev/null)
+
+        if [ -z "\$profile_name" ]; then
+          if [ "\$profile_count" -eq 1 ]; then
+            # Single profile - auto-select
+            profile_name=\$(jq -r 'keys[0]' .claude-sandbox.json)
+            echo "Using profile: \$profile_name" >&2
+          elif [ "\$profile_count" -gt 1 ]; then
+            # Multiple profiles - interactive selection
+            local profiles_list profile_array=()
+            profiles_list=\$(jq -r 'keys[]' .claude-sandbox.json)
+            while IFS= read -r p; do
+              [ -n "\$p" ] && profile_array+=("\$p")
+            done <<< "\$profiles_list"
+
+            echo "Available profiles:" >&2
+            local i=1
+            for p in "\${profile_array[@]}"; do
+              echo "  \$i) \$p" >&2
+              ((i++))
+            done
+
+            while true; do
+              read -p "Select profile [1-\$profile_count]: " selection </dev/tty
+              if [[ "\$selection" =~ ^[0-9]+\$ ]] && [ "\$selection" -ge 1 ] && [ "\$selection" -le "\$profile_count" ]; then
+                profile_name="\${profile_array[\$((selection-1))]}"
+                break
+              fi
+              echo "Invalid selection." >&2
+            done
+          fi
         fi
-      done < <(jq -r '(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+
+        # Validate selected profile exists
+        if [ -n "\$profile_name" ]; then
+          if ! jq -e --arg p "\$profile_name" 'has(\$p)' .claude-sandbox.json &>/dev/null; then
+            echo "Error: Profile '\$profile_name' not found" >&2
+            echo "Available: \$(jq -r 'keys | join(", ")' .claude-sandbox.json)" >&2
+            return 1
+          fi
+
+          # Extract mounts for profile
+          while IFS= read -r mount_spec; do
+            [ -z "\$mount_spec" ] && continue
+            local mount_path="\${mount_spec%%:*}"
+            if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
+              echo "Warning: Skipping mount with invalid characters" >&2
+            elif [ ! -e "\$mount_path" ]; then
+              echo "Warning: Mount path does not exist: \$mount_path" >&2
+            else
+              extra_mounts+=(-v "\$mount_spec")
+            fi
+          done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+        fi
+      fi
     fi
   fi
 
