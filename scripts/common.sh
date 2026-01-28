@@ -230,7 +230,7 @@ do_build() {
   check_runtime
 
   echo "Building $IMAGE_NAME image..."
-  "$RUNTIME_CMD" build --build-arg "CACHEBUST=$(date +%s)" -t "$IMAGE_NAME" "$REPO_ROOT"
+  "$RUNTIME_CMD" build -t "$IMAGE_NAME" "$REPO_ROOT"
 
   echo ""
   echo "Done! Image '$IMAGE_NAME' is ready."
