@@ -42,4 +42,7 @@ ENV PATH="/home/claude/.local/bin:/opt/claude-code:$PATH" \
     NODE_OPTIONS="--dns-result-order=ipv4first" \
     NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
 
-ENTRYPOINT ["claude", "--dangerously-skip-permissions"]
+COPY --chown=claude:claude entrypoint.sh /home/claude/entrypoint.sh
+RUN chmod +x /home/claude/entrypoint.sh
+
+ENTRYPOINT ["/home/claude/entrypoint.sh"]
