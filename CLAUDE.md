@@ -81,22 +81,29 @@ claude-sandbox shell
 
 ## Per-Project Configuration
 
-Projects can define additional mounts via `.claude-sandbox.json` in the project root:
+Projects can define named profiles via `.claude-sandbox.json` in the project root:
 
 ```json
 {
-  "mounts": [
-    { "path": "/Volumes/Data/input", "readonly": true },
-    { "path": "/Volumes/Data/output" }
-  ],
-  "ports": [
-    { "host": 8080, "container": 80 },
-    { "host": 3000, "container": 3000 }
-  ]
+  "dev": {
+    "mounts": [
+      { "path": "/Volumes/Data/input", "readonly": true },
+      { "path": "/Volumes/Data/output" }
+    ],
+    "ports": [
+      { "host": 3000, "container": 3000 }
+    ]
+  },
+  "prod": {
+    "mounts": [
+      { "path": "/Volumes/Data/prod", "readonly": true }
+    ]
+  }
 }
 ```
 
 **Fields:**
+- Root-level keys are profile names
 - `mounts[].path` (required): Absolute host path, mounted to the same path inside the container
 - `mounts[].readonly` (optional): If `true`, mount is read-only (default: `false`)
 - `ports[].host` (required): Host port number (1-65535)
@@ -108,31 +115,15 @@ Projects can define additional mounts via `.claude-sandbox.json` in the project 
 
 **Path behavior:** The working directory is mounted at its actual path (e.g., `/Users/foo/project` inside and outside). This allows file paths to work identically in both environments.
 
-### Multi-Profile Configuration
-
-Define multiple named profiles for different workflows:
-
-```json
-{
-  "dev": {
-    "mounts": [{ "path": "/data/dev" }],
-    "ports": [{ "host": 3000, "container": 3000 }]
-  },
-  "prod": {
-    "mounts": [{ "path": "/data/prod", "readonly": true }]
-  }
-}
-```
-
 **Profile selection:**
-- Single profile: used automatically
-- Multiple profiles: `--profile <name>` or `-p <name>`
-- No flag with multiple profiles: interactive prompt
+- With `--profile <name>` or `-p <name>`: Use specified profile
+- Without flag: Interactive prompt to select profile
 
 **Usage:**
 ```bash
 claude-sandbox --profile dev      # Use specific profile
 claude-sandbox -p prod            # Short form
+claude-sandbox                    # Interactive prompt
 claude-sandbox --profile dev login  # Profile + args to Claude
 ```
 

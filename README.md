@@ -84,81 +84,65 @@ claude-sandbox-apple
 
 ## Per-Project Configuration
 
-Create a `.claude-sandbox.json` file in your project root to mount additional directories:
+Create a `.claude-sandbox.json` file in your project root to define named profiles with mounts and ports:
 
 ```json
 {
-  "mounts": [
-    { "path": "/Volumes/Data/input", "readonly": true },
-    { "path": "/Volumes/Data/output" }
-  ],
-  "ports": [
-    { "host": 8080, "container": 80 },
-    { "host": 3000, "container": 3000 }
-  ]
+  "dev": {
+    "mounts": [
+      { "path": "/Volumes/Data/input", "readonly": true },
+      { "path": "/Volumes/Data/output" }
+    ],
+    "ports": [
+      { "host": 3000, "container": 3000 },
+      { "host": 5173, "container": 5173 }
+    ]
+  },
+  "prod": {
+    "mounts": [
+      { "path": "/Volumes/Data/prod", "readonly": true }
+    ]
+  }
 }
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
+| `<profile-name>` | Yes | Root-level keys are profile names |
 | `mounts[].path` | Yes | Absolute host path (mounted to the same path inside container) |
 | `mounts[].readonly` | No | If `true`, mount is read-only (default: `false`) |
 | `ports[].host` | Yes | Host port number (1-65535) |
 | `ports[].container` | Yes | Container port number (1-65535) |
 
-**Example use case:** A data processing project that reads from an external drive and writes results:
+**Profile selection:**
+- **With `--profile`**: Use specified profile directly
+- **Without flag**: Interactive numbered menu
 
-```json
-{
-  "mounts": [
-    { "path": "/Volumes/ExternalDrive/datasets", "readonly": true },
-    { "path": "/Users/me/outputs" }
-  ]
-}
+```bash
+claude-sandbox --profile dev   # Use specific profile
+claude-sandbox -p prod         # Short form
+claude-sandbox                  # Interactive prompt to select profile
 ```
 
-**Example use case:** A web development project that exposes a dev server:
-
-```json
-{
-  "ports": [
-    { "host": 3000, "container": 3000 },
-    { "host": 5173, "container": 5173 }
-  ]
-}
-```
-
-**Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are silently skipped and the sandbox runs normally.
-
-### Multi-Profile Configuration
-
-Define multiple named profiles for different workflows in the same project:
+**Example use case:** A data processing project with dev and prod environments:
 
 ```json
 {
   "dev": {
-    "mounts": [{ "path": "/data/dev" }],
-    "ports": [{ "host": 3000, "container": 3000 }]
+    "mounts": [
+      { "path": "/Volumes/ExternalDrive/datasets", "readonly": true },
+      { "path": "/Users/me/outputs" }
+    ]
   },
   "prod": {
-    "mounts": [{ "path": "/data/prod", "readonly": true }]
+    "mounts": [
+      { "path": "/Volumes/Production/data", "readonly": true }
+    ]
   }
 }
 ```
 
-**Profile selection behavior:**
-- **Single profile**: Used automatically (no flag needed)
-- **Multiple profiles with `--profile`**: Use specified profile
-- **Multiple profiles without flag**: Interactive numbered menu
-
-**Example use case:** A project with separate development and production data directories:
-
-```bash
-claude-sandbox --profile dev   # Mounts /data/dev read-write
-claude-sandbox -p prod         # Mounts /data/prod read-only
-```
-
-**Note:** The legacy format (`{"mounts": [...]}` at root level) is still fully supported for backward compatibility.
+**Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are silently skipped and the sandbox runs normally.
 
 ## Commands
 

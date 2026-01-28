@@ -97,11 +97,55 @@ ${FUNCTION_NAME}() {
     elif ! jq -e 'type == "object"' .claude-sandbox.json &>/dev/null; then
       echo "Warning: Invalid .claude-sandbox.json format" >&2
     else
-      local is_legacy
-      is_legacy=$(jq -e 'has("mounts") or has("ports")' .claude-sandbox.json >/dev/null 2>&1 && echo "yes" || echo "no")
+      # Profile-based format - each root key is a profile name
+      local profile_count
+      profile_count=\$(jq 'keys | length' .claude-sandbox.json 2>/dev/null)
 
-      if [ "\$is_legacy" = "yes" ]; then
-        # Legacy format - mounts at root level
+      if [ -z "\$profile_name" ]; then
+        if [ "\$profile_count" -gt 0 ]; then
+          # Interactive profile selection
+          local profiles_list profile_array=()
+          profiles_list=\$(jq -r 'keys[]' .claude-sandbox.json)
+          while IFS= read -r p; do
+            [ -n "\$p" ] && profile_array+=("\$p")
+          done <<< "\$profiles_list"
+
+          echo "Available profiles:" >&2
+          local i=1
+          for p in "\${profile_array[@]}"; do
+            echo "  \$i) \$p" >&2
+            ((i++))
+          done
+
+          while true; do
+            printf "Select profile [1-\$profile_count]: " >&2
+            read selection </dev/tty
+            if [[ "\$selection" =~ ^[0-9]+\$ ]] && [ "\$selection" -ge 1 ] && [ "\$selection" -le "\$profile_count" ]; then
+              # Find selected profile (portable across bash/zsh array indexing)
+              local idx=1
+              for p in "\${profile_array[@]}"; do
+                if [ "\$idx" -eq "\$selection" ]; then
+                  profile_name="\$p"
+                  break
+                fi
+                ((idx++))
+              done
+              break
+            fi
+            echo "Invalid selection." >&2
+          done
+        fi
+      fi
+
+      # Validate selected profile exists
+      if [ -n "\$profile_name" ]; then
+        if ! jq -e --arg p "\$profile_name" 'has(\$p)' .claude-sandbox.json &>/dev/null; then
+          echo "Error: Profile '\$profile_name' not found" >&2
+          echo "Available: \$(jq -r 'keys | join(", ")' .claude-sandbox.json)" >&2
+          return 1
+        fi
+
+        # Extract mounts for profile
         while IFS= read -r mount_spec; do
           [ -z "\$mount_spec" ] && continue
           local mount_path="\${mount_spec%%:*}"
@@ -112,9 +156,9 @@ ${FUNCTION_NAME}() {
           else
             extra_mounts+=(-v "\$mount_spec")
           fi
-        done < <(jq -r '(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+        done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
 
-        # Extract ports for legacy format
+        # Extract ports for profile
         while IFS= read -r port_spec; do
           [ -z "\$port_spec" ] && continue
           local host_port="\${port_spec%%:*}"
@@ -126,87 +170,7 @@ ${FUNCTION_NAME}() {
           else
             extra_ports+=(-p "\$port_spec")
           fi
-        done < <(jq -r '(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
-      else
-        # Profile-based format - each root key is a profile name
-        local profile_count
-        profile_count=\$(jq 'keys | length' .claude-sandbox.json 2>/dev/null)
-
-        if [ -z "\$profile_name" ]; then
-          if [ "\$profile_count" -eq 1 ]; then
-            # Single profile - auto-select
-            profile_name=\$(jq -r 'keys[0]' .claude-sandbox.json)
-            echo "Using profile: \$profile_name" >&2
-          elif [ "\$profile_count" -gt 1 ]; then
-            # Multiple profiles - interactive selection
-            local profiles_list profile_array=()
-            profiles_list=\$(jq -r 'keys[]' .claude-sandbox.json)
-            while IFS= read -r p; do
-              [ -n "\$p" ] && profile_array+=("\$p")
-            done <<< "\$profiles_list"
-
-            echo "Available profiles:" >&2
-            local i=1
-            for p in "\${profile_array[@]}"; do
-              echo "  \$i) \$p" >&2
-              ((i++))
-            done
-
-            while true; do
-              printf "Select profile [1-\$profile_count]: " >&2
-              read selection </dev/tty
-              if [[ "\$selection" =~ ^[0-9]+\$ ]] && [ "\$selection" -ge 1 ] && [ "\$selection" -le "\$profile_count" ]; then
-                # Find selected profile (portable across bash/zsh array indexing)
-                local idx=1
-                for p in "\${profile_array[@]}"; do
-                  if [ "\$idx" -eq "\$selection" ]; then
-                    profile_name="\$p"
-                    break
-                  fi
-                  ((idx++))
-                done
-                break
-              fi
-              echo "Invalid selection." >&2
-            done
-          fi
-        fi
-
-        # Validate selected profile exists
-        if [ -n "\$profile_name" ]; then
-          if ! jq -e --arg p "\$profile_name" 'has(\$p)' .claude-sandbox.json &>/dev/null; then
-            echo "Error: Profile '\$profile_name' not found" >&2
-            echo "Available: \$(jq -r 'keys | join(", ")' .claude-sandbox.json)" >&2
-            return 1
-          fi
-
-          # Extract mounts for profile
-          while IFS= read -r mount_spec; do
-            [ -z "\$mount_spec" ] && continue
-            local mount_path="\${mount_spec%%:*}"
-            if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
-              echo "Warning: Skipping mount with invalid characters" >&2
-            elif [ ! -e "\$mount_path" ]; then
-              echo "Warning: Mount path does not exist: \$mount_path" >&2
-            else
-              extra_mounts+=(-v "\$mount_spec")
-            fi
-          done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
-
-          # Extract ports for profile
-          while IFS= read -r port_spec; do
-            [ -z "\$port_spec" ] && continue
-            local host_port="\${port_spec%%:*}"
-            local container_port="\${port_spec##*:}"
-            if ! [[ "\$host_port" =~ ^[0-9]+\$ ]] || ! [[ "\$container_port" =~ ^[0-9]+\$ ]]; then
-              echo "Warning: Invalid port specification: \$port_spec" >&2
-            elif [ "\$host_port" -lt 1 ] || [ "\$host_port" -gt 65535 ] || [ "\$container_port" -lt 1 ] || [ "\$container_port" -gt 65535 ]; then
-              echo "Warning: Port out of range (1-65535): \$port_spec" >&2
-            else
-              extra_ports+=(-p "\$port_spec")
-            fi
-          done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
-        fi
+        done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
       fi
     fi
   fi
