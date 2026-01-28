@@ -98,7 +98,7 @@ ${FUNCTION_NAME}() {
       echo "Warning: Invalid .claude-sandbox.json format" >&2
     else
       local is_legacy
-      is_legacy=\$(jq -e 'has("mounts") or has("ports")' .claude-sandbox.json 2>/dev/null && echo "yes" || echo "no")
+      is_legacy=$(jq -e 'has("mounts") or has("ports")' .claude-sandbox.json >/dev/null 2>&1 && echo "yes" || echo "no")
 
       if [ "\$is_legacy" = "yes" ]; then
         # Legacy format - mounts at root level
