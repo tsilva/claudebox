@@ -63,6 +63,7 @@ ${FUNCTION_NAME}() {
 
   local entrypoint_args=()
   local extra_mounts=()
+  local extra_ports=()
   local workdir="\$(pwd)"
   local profile_name=""
   local cmd_args=()
@@ -91,7 +92,7 @@ ${FUNCTION_NAME}() {
   # Parse project config for extra mounts
   if [ -f ".claude-sandbox.json" ]; then
     if ! command -v jq &>/dev/null; then
-      echo "Warning: jq not installed, skipping .claude-sandbox.json mounts" >&2
+      echo "Warning: jq not installed, skipping .claude-sandbox.json config" >&2
       echo "Install with: brew install jq" >&2
     elif ! jq -e 'type == "object"' .claude-sandbox.json &>/dev/null; then
       echo "Warning: Invalid .claude-sandbox.json format" >&2
@@ -112,6 +113,20 @@ ${FUNCTION_NAME}() {
             extra_mounts+=(-v "\$mount_spec")
           fi
         done < <(jq -r '(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+
+        # Extract ports for legacy format
+        while IFS= read -r port_spec; do
+          [ -z "\$port_spec" ] && continue
+          local host_port="\${port_spec%%:*}"
+          local container_port="\${port_spec##*:}"
+          if ! [[ "\$host_port" =~ ^[0-9]+\$ ]] || ! [[ "\$container_port" =~ ^[0-9]+\$ ]]; then
+            echo "Warning: Invalid port specification: \$port_spec" >&2
+          elif [ "\$host_port" -lt 1 ] || [ "\$host_port" -gt 65535 ] || [ "\$container_port" -lt 1 ] || [ "\$container_port" -gt 65535 ]; then
+            echo "Warning: Port out of range (1-65535): \$port_spec" >&2
+          else
+            extra_ports+=(-p "\$port_spec")
+          fi
+        done < <(jq -r '(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
       else
         # Profile-based format - each root key is a profile name
         local profile_count
@@ -177,6 +192,20 @@ ${FUNCTION_NAME}() {
               extra_mounts+=(-v "\$mount_spec")
             fi
           done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+
+          # Extract ports for profile
+          while IFS= read -r port_spec; do
+            [ -z "\$port_spec" ] && continue
+            local host_port="\${port_spec%%:*}"
+            local container_port="\${port_spec##*:}"
+            if ! [[ "\$host_port" =~ ^[0-9]+\$ ]] || ! [[ "\$container_port" =~ ^[0-9]+\$ ]]; then
+              echo "Warning: Invalid port specification: \$port_spec" >&2
+            elif [ "\$host_port" -lt 1 ] || [ "\$host_port" -gt 65535 ] || [ "\$container_port" -lt 1 ] || [ "\$container_port" -gt 65535 ]; then
+              echo "Warning: Port out of range (1-65535): \$port_spec" >&2
+            else
+              extra_ports+=(-p "\$port_spec")
+            fi
+          done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
         fi
       fi
     fi
@@ -188,6 +217,7 @@ ${FUNCTION_NAME}() {
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\
     -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \\
     "\${extra_mounts[@]}" \\
+    "\${extra_ports[@]}" \\
     "\${entrypoint_args[@]}" \\
     ${IMAGE_NAME} "\${cmd_args[@]}"
 }

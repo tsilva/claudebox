@@ -88,13 +88,19 @@ Projects can define additional mounts via `.claude-sandbox.json` in the project 
   "mounts": [
     { "path": "/Volumes/Data/input", "readonly": true },
     { "path": "/Volumes/Data/output" }
+  ],
+  "ports": [
+    { "host": 8080, "container": 80 },
+    { "host": 3000, "container": 3000 }
   ]
 }
 ```
 
 **Fields:**
-- `path` (required): Absolute host path, mounted to the same path inside the container
-- `readonly` (optional): If `true`, mount is read-only (default: `false`)
+- `mounts[].path` (required): Absolute host path, mounted to the same path inside the container
+- `mounts[].readonly` (optional): If `true`, mount is read-only (default: `false`)
+- `ports[].host` (required): Host port number (1-65535)
+- `ports[].container` (required): Container port number (1-65535)
 
 **Requirements:**
 - `jq` must be installed for config parsing (`brew install jq`)
@@ -109,7 +115,8 @@ Define multiple named profiles for different workflows:
 ```json
 {
   "dev": {
-    "mounts": [{ "path": "/data/dev" }]
+    "mounts": [{ "path": "/data/dev" }],
+    "ports": [{ "host": 3000, "container": 3000 }]
   },
   "prod": {
     "mounts": [{ "path": "/data/prod", "readonly": true }]

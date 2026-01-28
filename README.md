@@ -91,14 +91,20 @@ Create a `.claude-sandbox.json` file in your project root to mount additional di
   "mounts": [
     { "path": "/Volumes/Data/input", "readonly": true },
     { "path": "/Volumes/Data/output" }
+  ],
+  "ports": [
+    { "host": 8080, "container": 80 },
+    { "host": 3000, "container": 3000 }
   ]
 }
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `path` | Yes | Absolute host path (mounted to the same path inside container) |
-| `readonly` | No | If `true`, mount is read-only (default: `false`) |
+| `mounts[].path` | Yes | Absolute host path (mounted to the same path inside container) |
+| `mounts[].readonly` | No | If `true`, mount is read-only (default: `false`) |
+| `ports[].host` | Yes | Host port number (1-65535) |
+| `ports[].container` | Yes | Container port number (1-65535) |
 
 **Example use case:** A data processing project that reads from an external drive and writes results:
 
@@ -111,7 +117,18 @@ Create a `.claude-sandbox.json` file in your project root to mount additional di
 }
 ```
 
-**Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts are silently skipped and the sandbox runs normally.
+**Example use case:** A web development project that exposes a dev server:
+
+```json
+{
+  "ports": [
+    { "host": 3000, "container": 3000 },
+    { "host": 5173, "container": 5173 }
+  ]
+}
+```
+
+**Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are silently skipped and the sandbox runs normally.
 
 ### Multi-Profile Configuration
 
@@ -120,7 +137,8 @@ Define multiple named profiles for different workflows in the same project:
 ```json
 {
   "dev": {
-    "mounts": [{ "path": "/data/dev" }]
+    "mounts": [{ "path": "/data/dev" }],
+    "ports": [{ "host": 3000, "container": 3000 }]
   },
   "prod": {
     "mounts": [{ "path": "/data/prod", "readonly": true }]
