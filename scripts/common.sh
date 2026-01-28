@@ -180,6 +180,7 @@ ${FUNCTION_NAME}() {
     -v "\$workdir:\$workdir" \\
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\
     -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \\
+    -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro \\
     "\${extra_mounts[@]}" \\
     "\${extra_ports[@]}" \\
     "\${entrypoint_args[@]}" \\
