@@ -1,3 +1,2 @@
-- fix login recurrence issue
-- install native
-- pre-installed marketplaces and plugins
+- figure out how to deal with plugins/marketplaces, etc
+- fix native apple container support (broken)

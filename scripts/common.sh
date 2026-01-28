@@ -66,6 +66,7 @@ ${FUNCTION_NAME}() {
   local workdir="\$(pwd)"
   local profile_name=""
   local cmd_args=()
+  local first_cmd=""
   local skip_next=false
 
   # Extract --profile/-p flag, pass remaining args to Claude
@@ -76,12 +77,13 @@ ${FUNCTION_NAME}() {
     elif [ "\$arg" = "--profile" ] || [ "\$arg" = "-p" ]; then
       skip_next=true
     else
+      [ -z "\$first_cmd" ] && first_cmd="\$arg"
       cmd_args+=("\$arg")
     fi
   done
 
-  # Handle "shell" command (check cmd_args, not original \$@)
-  if [ "\${cmd_args[0]:-}" = "shell" ]; then
+  # Handle "shell" command (use first_cmd for zsh/bash compatibility)
+  if [ "\$first_cmd" = "shell" ]; then
     entrypoint_args=(--entrypoint /bin/bash)
     cmd_args=("\${cmd_args[@]:1}")
   fi
@@ -136,9 +138,18 @@ ${FUNCTION_NAME}() {
             done
 
             while true; do
-              read -p "Select profile [1-\$profile_count]: " selection </dev/tty
+              printf "Select profile [1-\$profile_count]: " >&2
+              read selection </dev/tty
               if [[ "\$selection" =~ ^[0-9]+\$ ]] && [ "\$selection" -ge 1 ] && [ "\$selection" -le "\$profile_count" ]; then
-                profile_name="\${profile_array[\$((selection-1))]}"
+                # Find selected profile (portable across bash/zsh array indexing)
+                local idx=1
+                for p in "\${profile_array[@]}"; do
+                  if [ "\$idx" -eq "\$selection" ]; then
+                    profile_name="\$p"
+                    break
+                  fi
+                  ((idx++))
+                done
                 break
               fi
               echo "Invalid selection." >&2
