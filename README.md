@@ -270,6 +270,12 @@ Make sure both config paths are mounted. Check your shell function includes:
 
 Apple Container CLI may have networking limitations depending on macOS version. If you experience connectivity issues, try Docker instead or ensure you're running macOS 26 (Tahoe) or later.
 
+## Notifications
+
+For macOS desktop notifications when Claude is ready for input, install [claude-code-notify](https://github.com/tsilva/claude-code-notify) and enable sandbox support during its installation.
+
+The notification bridge uses TCP (`host.docker.internal:19223`) to relay messages from the container to the host, where `terminal-notifier` displays them.
+
 ## License
 
 MIT

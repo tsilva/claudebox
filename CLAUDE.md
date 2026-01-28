@@ -171,6 +171,10 @@ The `docker/` and `apple/` scripts are thin wrappers (~15 lines each) that:
 - Apple Silicon Mac (M1/M2/M3/M4)
 - Apple Container CLI: `brew install --cask container`
 
+## Notifications
+
+Desktop notifications are provided by [claude-code-notify](https://github.com/tsilva/claude-code-notify) (separate project). When sandbox support is enabled during claude-code-notify installation, a TCP listener starts on `localhost:19223`. The container connects via `host.docker.internal`. See README.md for setup instructions.
+
 ## Documentation
 
 README.md must be kept up to date with any significant project changes.

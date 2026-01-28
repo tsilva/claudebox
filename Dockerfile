@@ -3,7 +3,7 @@ FROM debian:stable-slim
 LABEL org.opencontainers.image.title="claude-sandbox" \
       org.opencontainers.image.description="Claude Code in an isolated container"
 
-RUN apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl git netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with UID 501 to match macOS user (for volume permissions)
 # Claude Code refuses --dangerously-skip-permissions as root
