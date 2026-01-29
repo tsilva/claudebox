@@ -115,6 +115,19 @@ claude-sandbox                  # Interactive prompt to select profile
 
 **Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are silently skipped and the sandbox runs normally.
 
+## Per-Project Dockerfile
+
+Place a `.claude-sandbox.Dockerfile` in your project root to customize the container with project-specific dependencies. The file is a standard Dockerfile that builds on top of the base image:
+
+```dockerfile
+FROM claude-sandbox
+
+RUN apt-get update && apt-get install -y python3 python3-pip
+RUN pip3 install pandas
+```
+
+When present, a per-project image is automatically built before each run. This lets you pre-install tools, libraries, or system packages that your project needs without modifying the shared base image.
+
 ## Commands
 
 | Script | Purpose |
@@ -169,12 +182,14 @@ graph LR
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
 4. All changes to the mounted directory are reflected in your project
 5. Optional: `.claude-sandbox.json` adds extra mounts for data directories
+6. Marketplace plugins from `~/.claude/plugins/marketplaces` are mounted read-only into the container
 
 ## Project Structure
 
 ```
 claude-sandbox/
 ├── Dockerfile              # Shared OCI-compatible image definition
+├── .dockerignore           # Files excluded from build context
 ├── scripts/
 │   └── common.sh           # Shared functions for all runtime scripts
 ├── docker/                 # Docker runtime scripts
@@ -183,6 +198,7 @@ claude-sandbox/
 │   ├── install.sh
 │   ├── uninstall.sh
 │   └── kill-containers.sh
+├── CLAUDE.md
 └── README.md
 ```
 
