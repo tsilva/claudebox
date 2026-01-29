@@ -175,6 +175,14 @@ ${FUNCTION_NAME}() {
     fi
   fi
 
+  # Build per-project image if .claude-sandbox.Dockerfile exists
+  local run_image="${IMAGE_NAME}"
+  if [ -f ".claude-sandbox.Dockerfile" ]; then
+    run_image="${IMAGE_NAME}-project"
+    echo "Building per-project image..." >&2
+    ${RUNTIME_CMD} build -q -f .claude-sandbox.Dockerfile -t "\$run_image" . >&2
+  fi
+
   ${RUNTIME_CMD} run -it --rm \\
     --workdir "\$workdir" \\
     -v "\$workdir:\$workdir" \\
@@ -184,7 +192,7 @@ ${FUNCTION_NAME}() {
     "\${extra_mounts[@]}" \\
     "\${extra_ports[@]}" \\
     "\${entrypoint_args[@]}" \\
-    ${IMAGE_NAME} "\${cmd_args[@]}"
+    "\$run_image" "\${cmd_args[@]}"
 }
 FUNC_EOF
 }
