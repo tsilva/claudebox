@@ -113,6 +113,9 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `mounts[].readonly` | No | If `true`, mount is read-only (default: `false`) |
 | `ports[].host` | Yes | Host port number (1-65535) |
 | `ports[].container` | Yes | Container port number (1-65535) |
+| `git_readonly` | No | If `false`, disables read-only `.git` mount (default: `true`) |
+
+**Git safety:** The `.git` directory is mounted read-only by default, preventing git write operations (`commit`, `push`, `add`) inside the container while allowing reads (`status`, `log`, `diff`). To allow git writes, set `"git_readonly": false` in your profile config.
 
 **Profile selection:**
 - **With `--profile`**: Use specified profile directly

@@ -108,6 +108,7 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 - `mounts[].readonly` (optional): If `true`, mount is read-only (default: `false`)
 - `ports[].host` (required): Host port number (1-65535)
 - `ports[].container` (required): Container port number (1-65535)
+- `git_readonly` (optional): If `false`, disables the read-only `.git` mount (default: `true`)
 
 **Requirements:**
 - `jq` must be installed for config parsing (`brew install jq`)

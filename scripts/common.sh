@@ -158,6 +158,13 @@ ${FUNCTION_NAME}() {
           fi
         done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
 
+        # Mount .git as read-only by default (opt out with "git_readonly": false)
+        local git_readonly
+        git_readonly=\$(jq -r --arg p "\$profile_name" '.[\$p].git_readonly // true' .claude-sandbox.json 2>/dev/null)
+        if [ "\$git_readonly" != "false" ] && [ -d "\$workdir/.git" ]; then
+          extra_mounts+=(-v "\$workdir/.git:\$workdir/.git:ro")
+        fi
+
         # Extract ports for profile
         while IFS= read -r port_spec; do
           [ -z "\$port_spec" ] && continue
