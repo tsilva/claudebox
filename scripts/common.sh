@@ -158,12 +158,9 @@ ${FUNCTION_NAME}() {
           fi
         done < <(jq -r --arg p "\$profile_name" '(.[\$p].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
 
-        # Mount .git as read-only by default (opt out with "git_readonly": false)
+        # Check if profile opts out of git readonly
         local git_readonly
         git_readonly=\$(jq -r --arg p "\$profile_name" '.[\$p].git_readonly // true' .claude-sandbox.json 2>/dev/null)
-        if [ "\$git_readonly" != "false" ] && [ -d "\$workdir/.git" ]; then
-          extra_mounts+=(-v "\$workdir/.git:\$workdir/.git:ro")
-        fi
 
         # Extract ports for profile
         while IFS= read -r port_spec; do
@@ -180,6 +177,14 @@ ${FUNCTION_NAME}() {
         done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
       fi
     fi
+  fi
+
+  # Mount .git as read-only by default (opt out with "git_readonly": false in profile)
+  if [ -z "\${git_readonly:-}" ]; then
+    git_readonly="true"
+  fi
+  if [ "\$git_readonly" != "false" ] && [ -d "\$workdir/.git" ]; then
+    extra_mounts+=(-v "\$workdir/.git:\$workdir/.git:ro")
   fi
 
   # Build per-project image if .claude-sandbox.Dockerfile exists
