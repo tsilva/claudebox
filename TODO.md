@@ -1,3 +1,2 @@
 - figure out how to deal with plugins/marketplaces, etc
-- fix native apple container support (broken)
 - review docker hardened images, is there a better one for us to use?

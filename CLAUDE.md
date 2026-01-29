@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerously-skip-permissions`) inside an isolated container. It supports both Docker and Apple Container CLI runtimes.
+claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerously-skip-permissions`) inside an isolated Docker container.
 
 ## Directory Structure
 
@@ -20,19 +20,11 @@ claude-sandbox/
 │   ├── install.sh          # Install shell function for Docker
 │   ├── kill-containers.sh  # Stop running Docker containers
 │   └── uninstall.sh        # Remove Docker image
-├── apple/                  # Apple Container CLI scripts (thin wrappers)
-│   ├── config.sh           # Apple Container-specific configuration variables
-│   ├── build.sh            # Build Apple Container image
-│   ├── install.sh          # Install shell function for Apple Container
-│   ├── kill-containers.sh  # Stop running Apple containers
-│   └── uninstall.sh        # Remove Apple Container image
 ├── CLAUDE.md
 └── README.md
 ```
 
 ## Commands
-
-### Docker (Recommended)
 
 ```bash
 # Build/rebuild the container image
@@ -46,22 +38,6 @@ claude-sandbox/
 
 # Force stop running containers
 ./docker/kill-containers.sh
-```
-
-### Apple Container CLI (Experimental)
-
-```bash
-# Build/rebuild the container image
-./apple/build.sh
-
-# Install (builds image + adds shell function to .zshrc/.bashrc)
-./apple/install.sh
-
-# Remove the container image
-./apple/uninstall.sh
-
-# Force stop running containers
-./apple/kill-containers.sh
 ```
 
 ## Usage
@@ -135,11 +111,10 @@ The project consists of shell scripts that wrap container runtimes:
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
 - **scripts/common.sh** - Shared functions used by all wrapper scripts (build, install, uninstall, kill logic)
 - **docker/** - Thin wrapper scripts for Docker runtime, creates `claude-sandbox` shell function
-- **apple/** - Thin wrapper scripts for Apple Container CLI, creates `claude-sandbox-apple` shell function
 
 ### Script Architecture
 
-The `docker/` and `apple/` scripts are thin wrappers (~15 lines each) that:
+The `docker/` scripts are thin wrappers (~15 lines each) that:
 1. Set configuration variables (`RUNTIME_CMD`, `IMAGE_NAME`, `FUNCTION_NAME`, etc.)
 2. Source `scripts/common.sh`
 3. Call the appropriate function (`do_build`, `do_install`, `do_uninstall`, or `do_kill_containers`)
@@ -156,19 +131,11 @@ The `docker/` and `apple/` scripts are thin wrappers (~15 lines each) that:
    - `NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt` - Uses system CA certs (Claude Code's bundled certs may be incomplete)
    - `NODE_OPTIONS="--dns-result-order=ipv4first"` - Avoids IPv6 routing issues in Docker
 
-4. **Container runtimes**:
-   - **Docker** (recommended) - Stable, works on all platforms
-   - **Apple Container CLI** (experimental) - Requires macOS 26+ and Apple Silicon; may have networking limitations
+4. **Container runtime**: Docker (recommended) - Stable, works on all platforms
 
 ## Requirements
 
-### Docker (Recommended)
 - [Docker Desktop](https://docs.docker.com/get-docker/) installed and running
-
-### Apple Container CLI (Experimental)
-- macOS 26 (Tahoe) or later
-- Apple Silicon Mac (M1/M2/M3/M4)
-- Apple Container CLI: `brew install --cask container`
 
 ## Notifications
 

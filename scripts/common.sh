@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# common.sh - Shared functions for claude-sandbox Docker and Apple Container scripts
+# common.sh - Shared functions for claude-sandbox container scripts
 #
 # Required variables (must be set by wrapper scripts before sourcing):
 #   RUNTIME_CMD      - Command to run (docker or container)
