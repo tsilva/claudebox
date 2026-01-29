@@ -50,3 +50,4 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+*.code-workspace
