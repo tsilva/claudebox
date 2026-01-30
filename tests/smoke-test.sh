@@ -26,16 +26,7 @@ for script in "$REPO_ROOT"/scripts/*.sh "$REPO_ROOT"/claude-sandbox-dev.sh "$REP
   fi
 done
 
-# Test 2: VERSION file exists and is non-empty
-echo ""
-echo "--- VERSION file ---"
-if [ -s "$REPO_ROOT/VERSION" ]; then
-  pass "VERSION file exists: $(cat "$REPO_ROOT/VERSION")"
-else
-  fail "VERSION file missing or empty"
-fi
-
-# Test 3: Docker image builds (only if Docker is available)
+# Test 2: Docker image builds (only if Docker is available)
 echo ""
 echo "--- Docker build ---"
 if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
@@ -49,13 +40,6 @@ if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
       pass "Claude binary accessible in container"
     else
       fail "Claude binary not accessible in container"
-    fi
-
-    # Test 5: VERSION file present in container
-    if docker run --rm --entrypoint cat claude-sandbox-test /opt/claude-code/VERSION >/dev/null 2>&1; then
-      pass "VERSION file present in container"
-    else
-      fail "VERSION file missing from container"
     fi
 
     # Cleanup

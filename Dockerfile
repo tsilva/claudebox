@@ -33,11 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Metadata ---
-# Copy the project version file into the image so `claude-sandbox --version`
-# can read it at runtime. Placed after system dependencies for better layer caching.
-COPY VERSION /opt/claude-code/VERSION
-
 # --- Git Read-Only Wrapper ---
 # Replace the real git binary with a wrapper that only allows read-only
 # subcommands. The real binary is preserved at /usr/bin/git.real.

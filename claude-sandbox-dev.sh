@@ -32,16 +32,6 @@ check_runtime() {
   fi
 }
 
-# Read version from VERSION file
-get_version() {
-  local version_file="${REPO_ROOT}/VERSION"
-  if [ -f "$version_file" ]; then
-    cat "$version_file" | tr -d '[:space:]'
-  else
-    echo "unknown"
-  fi
-}
-
 # Build container image
 do_build() {
   check_runtime

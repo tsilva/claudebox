@@ -11,7 +11,6 @@ claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerousl
 ```
 claude-sandbox/
 ├── Dockerfile              # OCI-compatible image definition
-├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/

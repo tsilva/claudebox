@@ -25,14 +25,6 @@ for arg in "$@"; do
     skip_next=false
   elif [ "$arg" = "--profile" ] || [ "$arg" = "-p" ]; then
     skip_next=true
-  elif [ "$arg" = "--version" ]; then
-    ver_file="/opt/claude-code/VERSION"
-    if [ -f "$ver_file" ]; then
-      echo "$SCRIPT_NAME $(cat "$ver_file" | tr -d '[:space:]')"
-    else
-      echo "$SCRIPT_NAME unknown"
-    fi
-    exit 0
   elif [ "$arg" = "--dry-run" ]; then
     dry_run=true
   else

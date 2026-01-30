@@ -96,9 +96,6 @@ claude-sandbox --profile dev login # Profile + args to Claude
 
 # Print the full docker run command without executing
 claude-sandbox --dry-run
-
-# Print version
-claude-sandbox --version
 ```
 
 💡 The `shell` argument is useful for debugging or exploring what tools and files are available inside the container.
@@ -215,7 +212,6 @@ graph LR
 ```
 claude-sandbox/
 ├── Dockerfile              # OCI-compatible image definition
-├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/

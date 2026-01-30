@@ -103,15 +103,6 @@ jobs:
       - name: Verify Claude binary accessible
         run: docker run --rm claude-sandbox --version || true
 
-      # Start a container but override the default entrypoint (which would
-      # run Claude Code) with "cat" instead. This prints the contents of
-      # /opt/claude-code/VERSION to stdout. This verifies that the VERSION
-      # file was correctly copied into the image during the Docker build.
-      # "--entrypoint cat" replaces what command runs when the container starts.
-      # Unlike the step above, this has no "|| true" — if the file is missing,
-      # the job fails, which is the desired behavior.
-      - name: Verify VERSION in container
-        run: docker run --rm --entrypoint cat claude-sandbox /opt/claude-code/VERSION
 
   # ---------------------------------------------------------------------------
   # Job 3: syntax
