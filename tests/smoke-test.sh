@@ -4,7 +4,7 @@
 #
 
 # Abort on any error
-set -e
+set -euo pipefail
 
 # Resolve the repo root from the script's own location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,23 +39,23 @@ done
 echo ""
 echo "--- Docker build ---"
 # Check both that the docker CLI exists and the daemon is running
-if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+if command -v docker &>/dev/null && docker info &>/dev/null; then
   # Build a test image tagged separately to avoid clobbering the real one
-  if docker build -t claude-sandbox-test "$REPO_ROOT" >/dev/null 2>&1; then
+  if docker build -t claude-sandbox-test "$REPO_ROOT" &>/dev/null; then
     pass "Docker image builds successfully"
 
     # --- Test 3: Claude binary is accessible in container ---
     # Runs --version to verify the entrypoint and binary work end-to-end
     echo ""
     echo "--- Container checks ---"
-    if docker run --rm claude-sandbox-test --version >/dev/null 2>&1; then
+    if docker run --rm claude-sandbox-test --version &>/dev/null; then
       pass "Claude binary accessible in container"
     else
       fail "Claude binary not accessible in container"
     fi
 
     # Cleanup: remove the test image to avoid leaving artifacts
-    docker image rm claude-sandbox-test >/dev/null 2>&1 || true
+    docker image rm claude-sandbox-test &>/dev/null || true
   else
     fail "Docker image build failed"
   fi

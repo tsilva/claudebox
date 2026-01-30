@@ -13,7 +13,7 @@
 #
 
 # Abort on any error
-set -eo pipefail
+set -euo pipefail
 
 # Resolve the repo root from this script's location (works even if invoked via symlink)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

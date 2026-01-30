@@ -20,7 +20,7 @@ ARCH=$(uname -m)
 case "$ARCH" in
   x86_64|amd64)   CLAUDE_ARCH="linux-x64" ;;
   aarch64|arm64)   CLAUDE_ARCH="linux-arm64" ;;
-  *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
+  *) echo "Unsupported architecture: $ARCH" >&2 && exit 1 ;;
 esac
 
 echo "Installing Claude Code $VERSION for $CLAUDE_ARCH..."
@@ -38,7 +38,7 @@ ACTUAL_SHA=$(sha256sum /opt/claude-code/claude | cut -d' ' -f1)
 
 # Abort if checksums don't match — indicates corrupted or tampered binary
 if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-  echo "Checksum mismatch! Expected: $EXPECTED_SHA, Got: $ACTUAL_SHA"
+  echo "Checksum mismatch! Expected: $EXPECTED_SHA, Got: $ACTUAL_SHA" >&2
   exit 1
 fi
 

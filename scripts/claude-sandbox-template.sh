@@ -8,12 +8,21 @@
 # =============================================================================
 
 # Abort on any error
-set -eo pipefail
+set -euo pipefail
 
 # Docker image name (replaced at install time by do_install)
 IMAGE_NAME="PLACEHOLDER_IMAGE_NAME"
 # CLI command name (replaced at install time by do_install)
 SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
+
+# Resource defaults (overridable via environment)
+: "${TMPFS_TMP_SIZE:=512m}"
+: "${TMPFS_CACHE_SIZE:=256m}"
+: "${TMPFS_NPM_SIZE:=128m}"
+: "${TMPFS_CONFIG_SIZE:=64m}"
+: "${TMPFS_LOCAL_SIZE:=256m}"
+: "${ULIMIT_NOFILE:=1024:2048}"
+: "${ULIMIT_FSIZE:=1073741824}"
 
 # Ensure the persistent config directory and session state file exist.
 # claude-config is mounted into the container as ~/.claude/ for credentials.
@@ -193,8 +202,8 @@ resource_args=()
 resource_args+=(--cpus "${CPU_LIMIT:-4}")              # Max CPU cores
 resource_args+=(--memory "${MEMORY_LIMIT:-8g}")        # Max memory
 resource_args+=(--pids-limit "${PIDS_LIMIT:-256}")     # Max concurrent processes
-resource_args+=(--ulimit nofile=1024:2048)             # Max open file descriptors
-resource_args+=(--ulimit fsize=1073741824:1073741824)  # Max file size (1GB)
+resource_args+=(--ulimit "nofile=$ULIMIT_NOFILE")       # Max open file descriptors
+resource_args+=(--ulimit "fsize=$ULIMIT_FSIZE:$ULIMIT_FSIZE")  # Max file size (1GB)
 
 # --- Per-project Dockerfile ---
 # If a project provides .claude-sandbox.Dockerfile, build a custom image
@@ -204,7 +213,10 @@ if [ -f ".claude-sandbox.Dockerfile" ]; then
   run_image="${IMAGE_NAME}-project"
   echo "Building per-project image..." >&2
   # Build quietly (-q) since this runs on every invocation
-  docker build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
+  if ! docker build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2; then
+    echo "Error: Failed to build per-project image from .claude-sandbox.Dockerfile" >&2
+    exit 1
+  fi
 fi
 
 # --- Build the docker run command ---
@@ -225,7 +237,7 @@ fi
 # Assemble the complete docker run command as an array for safe quoting
 docker_cmd=(
   docker run -it
-  "${container_args[@]}"
+  ${container_args[@]+"${container_args[@]}"}
   # Security hardening: drop all Linux capabilities
   --cap-drop=ALL
   # Prevent processes from gaining new privileges (e.g. via setuid binaries)
@@ -233,15 +245,15 @@ docker_cmd=(
   # Mount rootfs as read-only; writable dirs use tmpfs below
   --read-only
   # Tmpfs mounts for directories that need write access (size-limited)
-  --tmpfs /tmp:rw,nosuid,size=512m
-  --tmpfs /home/claude/.cache:rw,nosuid,size=256m
-  --tmpfs /home/claude/.npm:rw,nosuid,size=128m
-  --tmpfs /home/claude/.config:rw,nosuid,size=64m
-  --tmpfs /home/claude/.local:rw,nosuid,size=256m,uid=1000,gid=1000
+  --tmpfs "/tmp:rw,nosuid,size=$TMPFS_TMP_SIZE"
+  --tmpfs "/home/claude/.cache:rw,nosuid,size=$TMPFS_CACHE_SIZE"
+  --tmpfs "/home/claude/.npm:rw,nosuid,size=$TMPFS_NPM_SIZE"
+  --tmpfs "/home/claude/.config:rw,nosuid,size=$TMPFS_CONFIG_SIZE"
+  --tmpfs "/home/claude/.local:rw,nosuid,size=$TMPFS_LOCAL_SIZE,uid=1000,gid=1000"
   # Apply CPU, memory, and process limits
-  "${resource_args[@]}"
+  ${resource_args[@]+"${resource_args[@]}"}
   # Apply network mode if non-default
-  "${network_args[@]}"
+  ${network_args[@]+"${network_args[@]}"}
   # Set the working directory inside the container to match the host
   --workdir "$workdir"
   # Mount the current project directory at the same path for path parity
@@ -253,11 +265,11 @@ docker_cmd=(
   # Mount marketplace plugins read-only so Claude can use installed plugins
   -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro
   # Add any profile-configured extra mounts, ports, and entrypoint overrides
-  "${extra_mounts[@]}"
-  "${extra_ports[@]}"
-  "${entrypoint_args[@]}"
+  ${extra_mounts[@]+"${extra_mounts[@]}"}
+  ${extra_ports[@]+"${extra_ports[@]}"}
+  ${entrypoint_args[@]+"${entrypoint_args[@]}"}
   # Image to run, followed by arguments forwarded to the entrypoint
-  "$run_image" "${cmd_args[@]}"
+  "$run_image" ${cmd_args[@]+"${cmd_args[@]}"}
 )
 
 # --- Dry run mode ---
@@ -274,8 +286,8 @@ if [ "$audit_log" = "true" ]; then
   # With audit logging: use a named container so we can dump logs afterward
   cleanup() {
     # On interrupt/termination, force-stop and remove the named container
-    docker kill "$container_name" 2>/dev/null || true
-    docker rm "$container_name" 2>/dev/null || true
+    docker kill "$container_name" &>/dev/null || true
+    docker rm "$container_name" &>/dev/null || true
   }
   # Register cleanup for SIGINT (Ctrl+C) and SIGTERM
   trap cleanup INT TERM
@@ -288,16 +300,12 @@ if [ "$audit_log" = "true" ]; then
   log_file=~/.claude-sandbox/logs/${container_name}.log
   docker logs "$container_name" > "$log_file" 2>&1 || true
   # Remove the named container now that logs are captured
-  docker rm "$container_name" > /dev/null 2>&1 || true
+  docker rm "$container_name" &>/dev/null || true
   echo "Session log: $log_file" >&2
 
   # Remove the trap and exit with the container's exit code
   trap - INT TERM
   exit $exit_code
 else
-  # Without audit logging: simple ephemeral run
-  exit_code=0
-  "${docker_cmd[@]}" || exit_code=$?
-  # Propagate the container's exit code
-  exit $exit_code
+  exec "${docker_cmd[@]}"
 fi
