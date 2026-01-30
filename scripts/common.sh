@@ -43,6 +43,21 @@ check_runtime() {
   fi
 }
 
+# Validate config and check runtime in one call
+ensure_ready() {
+  validate_config
+  check_runtime
+}
+
+# Remove legacy shell function from shell config if present
+remove_legacy_function() {
+  if grep -q "^${FUNCTION_NAME}()[[:space:]]*{" "$SHELL_RC" 2>/dev/null; then
+    echo "Removing legacy $FUNCTION_NAME shell function from $SHELL_RC..."
+    sed -i.bak "/^# .*[Cc]laude [Ss]andbox/,/^}/d" "$SHELL_RC"
+    rm -f "$SHELL_RC.bak"
+  fi
+}
+
 # Detect shell config file (.zshrc or .bashrc)
 # Sets SHELL_RC variable
 detect_shell_rc() {
@@ -67,15 +82,9 @@ get_version() {
   fi
 }
 
-# Generate the standalone script content
-generate_script() {
-  cat "${REPO_ROOT}/scripts/claude-sandbox-template.sh"
-}
-
 # Build container image
 do_build() {
-  validate_config
-  check_runtime
+  ensure_ready
 
   echo "Building $IMAGE_NAME image..."
   "$RUNTIME_CMD" build --build-arg "USER_UID=$(id -u)" -t "$IMAGE_NAME" "$REPO_ROOT"
@@ -87,10 +96,7 @@ do_build() {
 
 # Install standalone script
 do_install() {
-  validate_config
-  check_runtime
-
-  # Build the image first
+  # Build the image first (calls ensure_ready)
   do_build
 
   detect_shell_rc
@@ -100,20 +106,14 @@ do_install() {
   local script_path="$bin_dir/$FUNCTION_NAME"
   mkdir -p "$bin_dir"
 
-  generate_script | sed \
-    -e "s|PLACEHOLDER_RUNTIME_CMD|$RUNTIME_CMD|g" \
+  sed -e "s|PLACEHOLDER_RUNTIME_CMD|$RUNTIME_CMD|g" \
     -e "s|PLACEHOLDER_IMAGE_NAME|$IMAGE_NAME|g" \
     -e "s|PLACEHOLDER_FUNCTION_NAME|$FUNCTION_NAME|g" \
-    > "$script_path"
+    "${REPO_ROOT}/scripts/claude-sandbox-template.sh" > "$script_path"
   chmod +x "$script_path"
   echo "Installed $script_path"
 
-  # Remove legacy shell function if present
-  if grep -q "^${FUNCTION_NAME}()[[:space:]]*{" "$SHELL_RC" 2>/dev/null; then
-    echo "Removing legacy $FUNCTION_NAME shell function from $SHELL_RC..."
-    sed -i.bak "/^# .*[Cc]laude [Ss]andbox/,/^}/d" "$SHELL_RC"
-    rm -f "$SHELL_RC.bak"
-  fi
+  remove_legacy_function
 
   # Add PATH entry if not already present
   local path_line='export PATH="$HOME/.claude-sandbox/bin:$PATH"'
@@ -143,7 +143,7 @@ do_install() {
 
 # Uninstall image and shell function
 do_uninstall() {
-  validate_config
+  ensure_ready
 
   # Prompt for confirmation
   read -p "This will remove the $IMAGE_NAME image and shell function. Continue? [y/N] " confirm
@@ -151,8 +151,6 @@ do_uninstall() {
     echo "Uninstall cancelled."
     exit 0
   fi
-
-  check_runtime
 
   echo "Removing $IMAGE_NAME image..."
   "$RUNTIME_CMD" image rm "$IMAGE_NAME" 2>/dev/null || echo "Image not found, skipping"
@@ -178,12 +176,7 @@ do_uninstall() {
     echo "PATH entry not found in $SHELL_RC, skipping"
   fi
 
-  # Also remove legacy shell function if present
-  if grep -q "^${FUNCTION_NAME}()[[:space:]]*{" "$SHELL_RC" 2>/dev/null; then
-    echo "Removing legacy $FUNCTION_NAME shell function from $SHELL_RC..."
-    sed -i.bak "/^# .*[Cc]laude [Ss]andbox/,/^}/d" "$SHELL_RC"
-    rm -f "$SHELL_RC.bak"
-  fi
+  remove_legacy_function
 
   echo ""
   echo "Uninstall complete."
@@ -193,8 +186,7 @@ do_uninstall() {
 
 # Stop all running containers for this image
 do_kill_containers() {
-  validate_config
-  check_runtime
+  ensure_ready
 
   echo "Finding running $IMAGE_NAME containers..."
 
@@ -206,14 +198,9 @@ do_kill_containers() {
     return 0
   fi
 
-  echo "Found containers:"
-  for id in $containers; do
-    echo "  - $id"
-  done
-  echo ""
-
   echo "Stopping containers..."
   for id in $containers; do
+    echo "  - $id"
     "$RUNTIME_CMD" stop "$id" 2>/dev/null || "$RUNTIME_CMD" kill "$id" 2>/dev/null || true
   done
 

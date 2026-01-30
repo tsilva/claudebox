@@ -62,40 +62,14 @@ if [ -f ".claude-sandbox.json" ]; then
     # Profile-based format - each root key is a profile name
     profile_count=$(jq 'keys | length' .claude-sandbox.json 2>/dev/null || echo 0)
 
-    if [ -z "$profile_name" ]; then
-      if [ "$profile_count" -gt 0 ]; then
-        # Interactive profile selection
-        profiles_list=$(jq -r 'keys[]' .claude-sandbox.json)
-        profile_array=()
-        while IFS= read -r p; do
-          [ -n "$p" ] && profile_array+=("$p")
-        done <<< "$profiles_list"
-
-        echo "Available profiles:" >&2
-        i=1
-        for p in "${profile_array[@]}"; do
-          echo "  $i) $p" >&2
-          ((i++))
-        done
-
-        while true; do
-          printf "Select profile [1-$profile_count]: " >&2
-          read selection </dev/tty
-          if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "$profile_count" ]; then
-            # Find selected profile (portable across bash/zsh array indexing)
-            idx=1
-            for p in "${profile_array[@]}"; do
-              if [ "$idx" -eq "$selection" ]; then
-                profile_name="$p"
-                break
-              fi
-              ((idx++))
-            done
-            break
-          fi
-          echo "Invalid selection." >&2
-        done
-      fi
+    if [ -z "$profile_name" ] && [ "$profile_count" -gt 0 ]; then
+      # Interactive profile selection
+      mapfile -t profile_array < <(jq -r 'keys[]' .claude-sandbox.json)
+      echo "Available profiles:" >&2
+      select profile_name in "${profile_array[@]}"; do
+        [ -n "$profile_name" ] && break
+        echo "Invalid selection." >&2
+      done </dev/tty
     fi
 
     # Validate selected profile exists
@@ -176,36 +150,6 @@ if [ -f ".claude-sandbox.Dockerfile" ]; then
   "$RUNTIME_CMD" build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
 fi
 
-if [ "$dry_run" = true ]; then
-  echo "$RUNTIME_CMD run -it --rm \\"
-  echo "  --cap-drop=ALL \\"
-  echo "  --security-opt=no-new-privileges \\"
-  echo "  --cpus ${CPU_LIMIT:-4} --memory ${MEMORY_LIMIT:-8g} \\"
-  echo "  --pids-limit ${PIDS_LIMIT:-256} \\"
-  echo "  --ulimit nofile=1024:2048 --ulimit fsize=1073741824:1073741824 \\"
-  echo "  --read-only \\"
-  echo "  --tmpfs /tmp:rw,nosuid,size=512m \\"
-  echo "  --tmpfs /home/claude/.cache:rw,nosuid,size=256m \\"
-  echo "  --tmpfs /home/claude/.npm:rw,nosuid,size=128m \\"
-  echo "  --tmpfs /home/claude/.config:rw,nosuid,size=64m \\"
-  echo "  --tmpfs /home/claude/.local:rw,nosuid,size=256m \\"
-  [ -n "${network_mode:-}" ] && [ "$network_mode" != "bridge" ] && echo "  --network $network_mode \\"
-  echo "  --workdir $workdir \\"
-  echo "  -v $workdir:$workdir \\"
-  echo "  -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\"
-  echo "  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \\"
-  echo "  -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro \\"
-  for ((i=0; i<${#extra_mounts[@]}; i+=2)); do
-    echo "  ${extra_mounts[i]} ${extra_mounts[i+1]} \\"
-  done
-  for ((i=0; i<${#extra_ports[@]}; i+=2)); do
-    echo "  ${extra_ports[i]} ${extra_ports[i+1]} \\"
-  done
-  [ "${#entrypoint_args[@]}" -gt 0 ] && echo "  ${entrypoint_args[*]} \\"
-  echo "  $run_image ${cmd_args[*]}"
-  exit 0
-fi
-
 # Session timeout (default: 6h)
 session_timeout="${SESSION_TIMEOUT:-6h}"
 
@@ -219,30 +163,39 @@ fi
 container_name="claude-sandbox-$(date +%s)"
 mkdir -p ~/.claude-sandbox/logs
 
+# Build the full docker command as an array
+docker_cmd=(
+  "$RUNTIME_CMD" run -it
+  --name "$container_name"
+  --cap-drop=ALL
+  --security-opt=no-new-privileges
+  --read-only
+  --tmpfs /tmp:rw,nosuid,size=512m
+  --tmpfs /home/claude/.cache:rw,nosuid,size=256m
+  --tmpfs /home/claude/.npm:rw,nosuid,size=128m
+  --tmpfs /home/claude/.config:rw,nosuid,size=64m
+  --tmpfs /home/claude/.local:rw,nosuid,size=256m
+  "${resource_args[@]}"
+  "${network_args[@]}"
+  --workdir "$workdir"
+  -v "$workdir:$workdir"
+  -v ~/.claude-sandbox/claude-config:/home/claude/.claude
+  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json
+  -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro
+  "${extra_mounts[@]}"
+  "${extra_ports[@]}"
+  "${entrypoint_args[@]}"
+  "$run_image" "${cmd_args[@]}"
+)
+
+if [ "$dry_run" = true ]; then
+  printf '%q ' "${docker_cmd[@]}"
+  echo
+  exit 0
+fi
+
 exit_code=0
-timeout "$session_timeout" \
-"$RUNTIME_CMD" run -it \
-  --name "$container_name" \
-  --cap-drop=ALL \
-  --security-opt=no-new-privileges \
-  --read-only \
-  --tmpfs /tmp:rw,nosuid,size=512m \
-  --tmpfs /home/claude/.cache:rw,nosuid,size=256m \
-  --tmpfs /home/claude/.npm:rw,nosuid,size=128m \
-  --tmpfs /home/claude/.config:rw,nosuid,size=64m \
-  --tmpfs /home/claude/.local:rw,nosuid,size=256m \
-  "${resource_args[@]}" \
-  "${network_args[@]}" \
-  --workdir "$workdir" \
-  -v "$workdir:$workdir" \
-  -v ~/.claude-sandbox/claude-config:/home/claude/.claude \
-  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \
-  -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro \
-  "${extra_mounts[@]}" \
-  "${extra_ports[@]}" \
-  "${entrypoint_args[@]}" \
-  "$run_image" "${cmd_args[@]}" \
-  || exit_code=$?
+timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
 
 # Dump session logs
 log_file=~/.claude-sandbox/logs/session-$(date +%Y%m%d-%H%M%S).log
