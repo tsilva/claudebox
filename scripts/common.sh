@@ -78,7 +78,7 @@ do_build() {
   ensure_ready
 
   echo "Building $IMAGE_NAME image..."
-  "$RUNTIME_CMD" build --build-arg "USER_UID=$(id -u)" -t "$IMAGE_NAME" "$REPO_ROOT"
+  "$RUNTIME_CMD" build -t "$IMAGE_NAME" "$REPO_ROOT"
 
   echo ""
   echo "Done! Image '$IMAGE_NAME' is ready."

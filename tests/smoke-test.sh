@@ -39,7 +39,7 @@ fi
 echo ""
 echo "--- Docker build ---"
 if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-  if docker build --build-arg "USER_UID=$(id -u)" -t claude-sandbox-test "$REPO_ROOT" >/dev/null 2>&1; then
+  if docker build -t claude-sandbox-test "$REPO_ROOT" >/dev/null 2>&1; then
     pass "Docker image builds successfully"
 
     # Test 4: Claude binary is accessible in container

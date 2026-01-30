@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build --build-arg "USER_UID=$(id -u)" -t claude-sandbox .
+        run: docker build -t claude-sandbox .
       - name: Verify Claude binary accessible
         run: docker run --rm claude-sandbox --version || true
       - name: Verify VERSION in container

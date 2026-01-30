@@ -5,23 +5,9 @@
 
 # --- Base Image ---
 # Debian stable-slim: minimal footprint while providing a full apt ecosystem.
-# Pinned by SHA256 digest for reproducible builds — prevents silent breakage
-# from upstream tag updates. Refresh periodically via:
-#   docker pull debian:stable-slim && docker inspect --format='{{index .RepoDigests 0}}' debian:stable-slim
-FROM debian:stable-slim@sha256:7484fda4fd1755b2eb4d8341c5d01dc9de6e31aae805e8ba8e83056906bec11b
+FROM debian:stable-slim
 
-# --- Build Arguments ---
-# UID for the in-container user. Defaults to 1000 (typical first user on Linux/macOS).
-# Configurable so host-mounted volumes have matching file ownership, avoiding
-# permission errors when the container writes to bind-mounted directories.
-ARG USER_UID=1000
-
-# --- Metadata ---
-# Copy the project version file into the image so `claude-sandbox --version`
-# can read it at runtime. Stored in /opt/claude-code/ alongside the binary.
-COPY VERSION /opt/claude-code/VERSION
-
-# OCI standard labels for container registries and tooling.
+# --- OCI Metadata ---
 LABEL org.opencontainers.image.title="claude-sandbox" \
       org.opencontainers.image.description="Claude Code in an isolated container"
 
@@ -36,7 +22,7 @@ LABEL org.opencontainers.image.title="claude-sandbox" \
 #   python3-venv     — create isolated Python environments
 #   python-is-python3 — symlinks `python` → `python3` for compatibility
 # The apt cache is removed after install to keep the layer small.
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     jq \
@@ -46,6 +32,11 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
+
+# --- Metadata ---
+# Copy the project version file into the image so `claude-sandbox --version`
+# can read it at runtime. Placed after system dependencies for better layer caching.
+COPY VERSION /opt/claude-code/VERSION
 
 # --- Git Read-Only Wrapper ---
 # Replace the real git binary with a wrapper that only allows read-only
@@ -57,12 +48,10 @@ RUN mv /usr/bin/git /usr/bin/git.real && \
     ln -s /usr/local/bin/git-readonly-wrapper.sh /usr/bin/git
 
 # --- User Setup ---
-# Create a non-root user "claude" with the configurable UID.
-# Claude Code refuses to run --dangerously-skip-permissions as root,
-# so a regular user is required.
-# Pre-create /opt/claude-code (binary install target) and ~/.local/bin
-# (symlink location) with correct ownership.
-RUN useradd -m -s /bin/bash -u "$USER_UID" claude && \
+# Create a non-root user "claude". Claude Code refuses to run
+# --dangerously-skip-permissions as root, so a regular user is required.
+# On macOS/Docker Desktop, UID mapping is handled by the VM layer.
+RUN useradd -m -s /bin/bash claude && \
     mkdir -p /opt/claude-code /opt/uv /home/claude/.local/bin && \
     chown -R claude:claude /opt/claude-code /opt/uv /home/claude/.local
 
@@ -73,17 +62,15 @@ USER claude
 # Download the Claude Code standalone binary from Google Cloud Storage.
 # The install script handles version detection, architecture mapping,
 # binary download, and SHA256 checksum verification.
+# Also creates ~/.local/bin/claude symlink for native install detection.
 COPY --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
-RUN chmod +x /tmp/install-claude-code.sh && /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh
-
-# --- Symlink for Native Install Detection ---
-# Claude Code checks ~/.local/bin/claude to determine if it's "natively installed".
-# This symlink satisfies that check without duplicating the binary.
-RUN ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
+RUN chmod +x /tmp/install-claude-code.sh && /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh && \
+    ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
 
 # --- Python Tooling ---
 # Install uv to /opt/uv/ so it persists on a read-only rootfs.
 # ~/.local is a tmpfs at runtime, so user-local installs would be lost.
+# Version pinned for reproducibility.
 ENV UV_INSTALL_DIR=/opt/uv/bin
 RUN curl -LsSf https://astral.sh/uv/0.7.12/install.sh | sh
 
@@ -98,9 +85,13 @@ WORKDIR /workspace
 #   common inside Docker bridge networks.
 # NODE_EXTRA_CA_CERTS: use the system CA certificate bundle instead of
 #   Claude Code's bundled certs, which may be incomplete for some environments.
+# PYTHONDONTWRITEBYTECODE: skip .pyc file generation (unnecessary in containers).
+# PYTHONUNBUFFERED: flush stdout/stderr immediately for real-time log output.
 ENV PATH="/home/claude/.local/bin:/opt/uv/bin:/opt/claude-code:$PATH" \
     NODE_OPTIONS="--dns-result-order=ipv4first" \
-    NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
+    NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 # --- Entrypoint ---
 # Copy the entrypoint script and make it executable. The entrypoint handles
