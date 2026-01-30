@@ -149,7 +149,9 @@ ${FUNCTION_NAME}() {
         while IFS= read -r mount_spec; do
           [ -z "\$mount_spec" ] && continue
           local mount_path="\${mount_spec%%:*}"
-          if [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
+          if [[ "\$mount_path" == *":"* ]]; then
+            echo "Warning: Skipping mount path containing ':': \$mount_path" >&2
+          elif [[ "\$mount_path" =~ [[:cntrl:]] ]]; then
             echo "Warning: Skipping mount with invalid characters" >&2
           elif [ ! -e "\$mount_path" ]; then
             echo "Warning: Mount path does not exist: \$mount_path" >&2
@@ -172,7 +174,7 @@ ${FUNCTION_NAME}() {
           elif [ "\$host_port" -lt 1 ] || [ "\$host_port" -gt 65535 ] || [ "\$container_port" -lt 1 ] || [ "\$container_port" -gt 65535 ]; then
             echo "Warning: Port out of range (1-65535): \$port_spec" >&2
           else
-            extra_ports+=(-p "\$port_spec")
+            extra_ports+=(-p "127.0.0.1:\$port_spec")
           fi
         done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
       fi
@@ -196,6 +198,8 @@ ${FUNCTION_NAME}() {
   fi
 
   ${RUNTIME_CMD} run -it --rm \\
+    --cap-drop=ALL \\
+    --security-opt=no-new-privileges \\
     --workdir "\$workdir" \\
     -v "\$workdir:\$workdir" \\
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\

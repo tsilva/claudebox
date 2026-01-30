@@ -1,4 +1,5 @@
-FROM debian:stable-slim
+# Pin base image digest — update periodically via: docker pull debian:stable-slim && docker inspect --format='{{index .RepoDigests 0}}' debian:stable-slim
+FROM debian:stable-slim@sha256:7484fda4fd1755b2eb4d8341c5d01dc9de6e31aae805e8ba8e83056906bec11b
 
 LABEL org.opencontainers.image.title="claude-sandbox" \
       org.opencontainers.image.description="Claude Code in an isolated container"
@@ -30,7 +31,7 @@ RUN GCS_BUCKET="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42
 RUN ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
 
 # Install uv (fast Python package installer)
-RUN pip3 install --user --break-system-packages uv
+RUN pip3 install --user --break-system-packages uv==0.7.12
 
 WORKDIR /workspace
 
