@@ -18,7 +18,7 @@ claude-sandbox/
 ├── docker/                 # Docker runtime scripts (thin wrappers)
 │   ├── config.sh           # Docker-specific configuration variables
 │   ├── build.sh            # Build Docker image
-│   ├── install.sh          # Install shell function for Docker
+│   ├── install.sh          # Install standalone script for Docker
 │   ├── update.sh           # Pull latest + rebuild
 │   ├── kill-containers.sh  # Stop running Docker containers
 │   └── uninstall.sh        # Remove Docker image
@@ -38,7 +38,7 @@ claude-sandbox/
 # Build/rebuild the container image
 ./docker/build.sh
 
-# Install (builds image + adds shell function to .zshrc/.bashrc)
+# Install (builds image + installs script to ~/.claude-sandbox/bin/)
 ./docker/install.sh
 
 # Remove the container image
@@ -50,7 +50,7 @@ claude-sandbox/
 
 ## Usage
 
-After installation, the shell functions accept the following arguments:
+After installation, the `claude-sandbox` command accepts the following arguments:
 
 ```bash
 # Run Claude Code in the sandbox
@@ -119,7 +119,7 @@ The project consists of shell scripts that wrap container runtimes:
 
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
 - **scripts/common.sh** - Shared functions used by all wrapper scripts (build, install, uninstall, kill logic)
-- **docker/** - Thin wrapper scripts for Docker runtime, creates `claude-sandbox` shell function
+- **docker/** - Thin wrapper scripts for Docker runtime, installs `claude-sandbox` standalone script
 
 ### Script Architecture
 

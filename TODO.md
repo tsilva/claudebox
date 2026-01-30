@@ -1,2 +1,0 @@
-- figure out how to deal with plugins/marketplaces, etc
-- review docker hardened images, is there a better one for us to use?

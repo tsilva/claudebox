@@ -38,7 +38,7 @@
 - **🎛️ Per-project configuration** — Define additional mounts and ports via `.claude-sandbox.json` for data directories, output folders, and more
 - **🏗️ Per-project Dockerfile** — Customize the container with project-specific dependencies using `.claude-sandbox.Dockerfile`
 - **🧩 Plugin support** — Marketplace plugins from `~/.claude/plugins/marketplaces` are mounted read-only into the container
-- **🎯 Simple setup** — One install script adds a shell function you can run from any project
+- **🎯 Simple setup** — One install script adds a standalone command you can run from any project
 
 ## 🚀 Quick Start
 
@@ -188,7 +188,7 @@ When present, a per-project image is automatically built before each run. This l
 
 | Script | Purpose |
 |--------|---------|
-| `./docker/install.sh` | Build image and add `claude-sandbox` shell function |
+| `./docker/install.sh` | Build image and install `claude-sandbox` script to `~/.claude-sandbox/bin/` |
 | `./docker/build.sh` | Rebuild the container image |
 | `./docker/update.sh` | Pull latest changes and rebuild |
 | `./docker/uninstall.sh` | Remove the container image |
@@ -204,7 +204,7 @@ graph LR
     D -->|changes| A
 ```
 
-1. **install.sh** builds an OCI-compatible image with Claude Code pre-installed
+1. **install.sh** builds an OCI-compatible image and installs a standalone script to `~/.claude-sandbox/bin/`
 2. Running `claude-sandbox` starts a container with your current directory mounted at its actual path
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
 4. All changes to the mounted directory are reflected in your project
@@ -285,7 +285,7 @@ echo '{}' > ~/.claude-sandbox/.claude.json
 
 ### Login doesn't persist
 
-Make sure both config paths are mounted. Check your shell function includes:
+Make sure both config paths are mounted. Check the generated script includes:
 - `-v ~/.claude-sandbox/claude-config:/home/claude/.claude`
 - `-v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json`
 
