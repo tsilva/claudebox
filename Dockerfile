@@ -18,7 +18,6 @@ LABEL org.opencontainers.image.title="claude-sandbox" \
 #   jq               — parse JSON manifests (checksum verification) and project configs
 #   netcat-openbsd   — TCP connectivity for desktop notification support (port 19223)
 #   python3          — required by many Claude Code tool-use workflows
-#   python3-pip      — install Python packages (e.g., uv)
 #   python3-venv     — create isolated Python environments
 #   python-is-python3 — symlinks `python` → `python3` for compatibility
 # The apt cache is removed after install to keep the layer small.
@@ -28,12 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     netcat-openbsd \
     python3 \
-    python3-pip \
     python3-venv \
     python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# --- User Setup ---
+# --- User Setup + Claude Code + Python Tooling ---
 # Create a non-root user "claude". Claude Code refuses to run
 # --dangerously-skip-permissions as root, so a regular user is required.
 # On macOS/Docker Desktop, UID mapping is handled by the VM layer.
@@ -44,21 +42,16 @@ RUN useradd -m -s /bin/bash claude && \
 # Switch to non-root user for all subsequent commands.
 USER claude
 
-# --- Claude Code Binary Install ---
+# --- Claude Code Binary + uv Install ---
 # Download the Claude Code standalone binary from Google Cloud Storage.
 # The install script handles version detection, architecture mapping,
 # binary download, and SHA256 checksum verification.
-# Also creates ~/.local/bin/claude symlink for native install detection.
-COPY --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
-RUN chmod +x /tmp/install-claude-code.sh && /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh && \
-    ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
-
-# --- Python Tooling ---
-# Install uv to /opt/uv/ so it persists on a read-only rootfs.
+# Also installs uv to /opt/uv/ so it persists on a read-only rootfs.
 # ~/.local is a tmpfs at runtime, so user-local installs would be lost.
-# Version pinned for reproducibility.
+COPY --chmod=755 --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
 ENV UV_INSTALL_DIR=/opt/uv/bin
-RUN curl -LsSf https://astral.sh/uv/0.7.12/install.sh | sh
+RUN /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh && \
+    curl -LsSf https://astral.sh/uv/0.7.12/install.sh | sh
 
 # --- Working Directory ---
 # /workspace is the default working directory. At runtime, the host project
@@ -80,10 +73,9 @@ ENV PATH="/home/claude/.local/bin:/opt/uv/bin:/opt/claude-code:$PATH" \
     PYTHONUNBUFFERED=1
 
 # --- Entrypoint ---
-# Copy the entrypoint script and make it executable. The entrypoint handles
-# argument parsing (e.g., "shell" for debug access) and launches Claude Code
-# with --dangerously-skip-permissions.
-COPY --chown=claude:claude entrypoint.sh /home/claude/entrypoint.sh
-RUN chmod +x /home/claude/entrypoint.sh
+# Copy the entrypoint script. The entrypoint handles argument parsing
+# (e.g., "shell" for debug access) and launches Claude Code with
+# --dangerously-skip-permissions.
+COPY --chmod=755 --chown=claude:claude entrypoint.sh /home/claude/entrypoint.sh
 
 ENTRYPOINT ["/home/claude/entrypoint.sh"]
