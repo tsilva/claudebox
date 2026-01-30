@@ -49,15 +49,6 @@ ensure_ready() {
   check_runtime
 }
 
-# Remove legacy shell function from shell config if present
-remove_legacy_function() {
-  if grep -q "^${FUNCTION_NAME}()[[:space:]]*{" "$SHELL_RC" 2>/dev/null; then
-    echo "Removing legacy $FUNCTION_NAME shell function from $SHELL_RC..."
-    sed -i.bak "/^# .*[Cc]laude [Ss]andbox/,/^}/d" "$SHELL_RC"
-    rm -f "$SHELL_RC.bak"
-  fi
-}
-
 # Detect shell config file (.zshrc or .bashrc)
 # Sets SHELL_RC variable
 detect_shell_rc() {
@@ -112,8 +103,6 @@ do_install() {
     "${REPO_ROOT}/scripts/claude-sandbox-template.sh" > "$script_path"
   chmod +x "$script_path"
   echo "Installed $script_path"
-
-  remove_legacy_function
 
   # Add PATH entry if not already present
   local path_line='export PATH="$HOME/.claude-sandbox/bin:$PATH"'
@@ -175,8 +164,6 @@ do_uninstall() {
   else
     echo "PATH entry not found in $SHELL_RC, skipping"
   fi
-
-  remove_legacy_function
 
   echo ""
   echo "Uninstall complete."
