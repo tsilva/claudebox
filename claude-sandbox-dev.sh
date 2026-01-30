@@ -13,7 +13,7 @@
 #
 
 # Abort on any error
-set -e
+set -eo pipefail
 
 # Resolve the repo root from this script's location (works even if invoked via symlink)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +21,20 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_NAME="claude-sandbox"
 # Name of the installed CLI command the user will invoke
 SCRIPT_NAME="claude-sandbox"
+
+# Detect the user's shell RC file for PATH configuration.
+# Returns the path to the first found RC file, defaulting to .zshrc (macOS default).
+detect_shell_rc() {
+  if [ -f "$HOME/.zshrc" ]; then
+    echo "$HOME/.zshrc"
+  elif [ -f "$HOME/.bashrc" ]; then
+    echo "$HOME/.bashrc"
+  else
+    echo "$HOME/.zshrc"
+    echo "Warning: Neither .zshrc nor .bashrc found, creating $HOME/.zshrc" >&2
+    echo "If you use a different shell, add the function to your shell config manually." >&2
+  fi
+}
 
 # Check if Docker CLI is available and the daemon is running.
 # Called before any command that requires Docker.
@@ -33,7 +47,7 @@ check_runtime() {
   fi
 
   # Verify the Docker daemon is responsive (not just installed)
-  if ! docker info &>/dev/null 2>&1; then
+  if ! docker info &>/dev/null; then
     echo "Error: Docker daemon is not running." >&2
     echo "Please start Docker Desktop and try again." >&2
     exit 1
@@ -59,17 +73,8 @@ do_install() {
   # Build the image first (calls check_runtime internally)
   do_build
 
-  # Detect the user's shell config file to add PATH entry later
-  if [ -f "$HOME/.zshrc" ]; then
-    shell_rc="$HOME/.zshrc"
-  elif [ -f "$HOME/.bashrc" ]; then
-    shell_rc="$HOME/.bashrc"
-  else
-    # Default to zsh (macOS default) if neither file exists
-    shell_rc="$HOME/.zshrc"
-    echo "Warning: Neither .zshrc nor .bashrc found, creating $shell_rc"
-    echo "If you use a different shell, add the function to your shell config manually."
-  fi
+  local shell_rc
+  shell_rc="$(detect_shell_rc)"
 
   # Create the bin directory and generate the standalone script from the template
   local bin_dir="$HOME/.claude-sandbox/bin"
@@ -136,14 +141,8 @@ do_uninstall() {
     echo "Script not found at $script_path, skipping"
   fi
 
-  # Detect shell config to clean up PATH entry
-  if [ -f "$HOME/.zshrc" ]; then
-    shell_rc="$HOME/.zshrc"
-  elif [ -f "$HOME/.bashrc" ]; then
-    shell_rc="$HOME/.bashrc"
-  else
-    shell_rc="$HOME/.zshrc"
-  fi
+  local shell_rc
+  shell_rc="$(detect_shell_rc)"
 
   # Remove the PATH entry and comment block from the shell config
   if grep -qF '.claude-sandbox/bin' "$shell_rc" 2>/dev/null; then
@@ -210,9 +209,8 @@ case "$cmd" in
     ;;
   update)
     # Pull latest git changes, then rebuild the image
-    cd "$REPO_ROOT"
     echo "Pulling latest changes..."
-    git pull
+    git -C "$REPO_ROOT" pull
     do_build
     ;;
   *)

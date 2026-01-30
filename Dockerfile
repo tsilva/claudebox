@@ -50,8 +50,11 @@ USER claude
 # ~/.local is a tmpfs at runtime, so user-local installs would be lost.
 COPY --chmod=755 --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
 ENV UV_INSTALL_DIR=/opt/uv/bin
-RUN /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh && \
-    curl -LsSf https://astral.sh/uv/0.7.12/install.sh | sh
+RUN /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh
+
+# --- uv (Python package installer) ---
+ARG UV_VERSION=0.7.12
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
 
 # --- Working Directory ---
 # /workspace is the default working directory. At runtime, the host project

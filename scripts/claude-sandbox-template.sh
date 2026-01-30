@@ -8,7 +8,7 @@
 # =============================================================================
 
 # Abort on any error
-set -e
+set -eo pipefail
 
 # Docker image name (replaced at install time by do_install)
 IMAGE_NAME="PLACEHOLDER_IMAGE_NAME"

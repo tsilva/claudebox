@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Recreate symlink on tmpfs (rootfs is read-only, ~/.local is a tmpfs)
 # The binary lives at /opt/claude-code/ to avoid collision with the config
