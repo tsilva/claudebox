@@ -8,7 +8,7 @@ COPY VERSION /opt/claude-code/VERSION
 LABEL org.opencontainers.image.title="claude-sandbox" \
       org.opencontainers.image.description="Claude Code in an isolated container"
 
-RUN apt-get update && apt-get install -y curl git netcat-openbsd python3 python3-pip python3-venv python-is-python3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl git jq netcat-openbsd python3 python3-pip python3-venv python-is-python3 && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with configurable UID for volume permission compatibility
 # Claude Code refuses --dangerously-skip-permissions as root
@@ -29,7 +29,13 @@ RUN GCS_BUCKET="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42
     esac && \
     echo "Installing Claude Code $VERSION for $CLAUDE_ARCH..." && \
     curl -fsSL --progress-bar -o /opt/claude-code/claude "$GCS_BUCKET/$VERSION/$CLAUDE_ARCH/claude" && \
-    chmod +x /opt/claude-code/claude
+    chmod +x /opt/claude-code/claude && \
+    EXPECTED_SHA=$(curl -fsSL "$GCS_BUCKET/$VERSION/manifest.json" | jq -r ".platforms[\"$CLAUDE_ARCH\"].checksum") && \
+    ACTUAL_SHA=$(sha256sum /opt/claude-code/claude | cut -d' ' -f1) && \
+    if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then \
+      echo "Checksum mismatch! Expected: $EXPECTED_SHA, Got: $ACTUAL_SHA" && exit 1; \
+    fi && \
+    echo "Checksum verified: $ACTUAL_SHA"
 
 # Create symlink at expected native install location
 RUN ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
