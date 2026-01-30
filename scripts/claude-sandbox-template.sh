@@ -131,7 +131,15 @@ fi
 # Network mode (default: bridge)
 network_args=()
 if [ -n "${network_mode:-}" ] && [ "$network_mode" != "bridge" ]; then
-  network_args=(--network "$network_mode")
+  case "$network_mode" in
+    bridge|none)
+      network_args=(--network "$network_mode")
+      ;;
+    *)
+      echo "Error: Unsupported network mode '$network_mode' (allowed: bridge, none)" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 # Resource limits (configurable via env vars)
@@ -159,8 +167,14 @@ if [ -n "${profile_name:-}" ] && [ -f ".claude-sandbox.json" ] && command -v jq 
   [ -n "$profile_timeout" ] && session_timeout="$profile_timeout"
 fi
 
+# Validate session timeout format
+if ! [[ "$session_timeout" =~ ^[0-9]+[smhd]?$ ]]; then
+  echo "Error: Invalid session timeout format '$session_timeout' (expected: number with optional s/m/h/d suffix)" >&2
+  exit 1
+fi
+
 # Audit logging: use a named container instead of --rm
-container_name="claude-sandbox-$(date +%s)"
+container_name="claude-sandbox-$(date +%s)-$$"
 mkdir -p ~/.claude-sandbox/logs
 
 # Build the full docker command as an array
@@ -194,13 +208,20 @@ if [ "$dry_run" = true ]; then
   exit 0
 fi
 
+cleanup() {
+  "$RUNTIME_CMD" kill "$container_name" 2>/dev/null || true
+  "$RUNTIME_CMD" rm "$container_name" 2>/dev/null || true
+}
+trap cleanup INT TERM
+
 exit_code=0
 timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
 
 # Dump session logs
-log_file=~/.claude-sandbox/logs/session-$(date +%Y%m%d-%H%M%S).log
+log_file=~/.claude-sandbox/logs/${container_name}.log
 "$RUNTIME_CMD" logs "$container_name" > "$log_file" 2>&1 || true
 "$RUNTIME_CMD" rm "$container_name" > /dev/null 2>&1 || true
 echo "Session log: $log_file" >&2
 
+trap - INT TERM
 exit $exit_code

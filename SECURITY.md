@@ -38,6 +38,10 @@ This protection applies to **all** git repositories accessible inside the contai
 
 To allow full git access, set `"git_readonly": false` in your `.claude-sandbox.json` profile.
 
+## Per-Project Dockerfile
+
+If a `.claude-sandbox.Dockerfile` exists in the project root, it is automatically built and used as the container image. This file runs with full Docker build capabilities and constitutes an **explicit trust boundary** — it can install packages, run arbitrary commands at build time, and modify the container environment. Only use projects with `.claude-sandbox.Dockerfile` from sources you trust.
+
 ## Recommendations
 
 - Avoid mounting sensitive directories (SSH keys, credentials, etc.)

@@ -59,7 +59,24 @@ for allowed in $READONLY_CMDS; do
         esac
       done
     fi
-    exec "$REAL_GIT" "$@"
+
+    # Rebuild args stripping all -c key=value pairs to prevent config-based
+    # code execution (e.g. core.pager, core.fsmonitor, alias.*)
+    safe_args=()
+    skip_c=false
+    for a in "$@"; do
+      if [ "$skip_c" = true ]; then
+        skip_c=false
+        continue
+      fi
+      if [ "$a" = "-c" ]; then
+        skip_c=true
+        continue
+      fi
+      safe_args+=("$a")
+    done
+
+    exec "$REAL_GIT" "${safe_args[@]}"
   fi
 done
 
