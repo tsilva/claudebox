@@ -57,6 +57,9 @@ claude-sandbox login
 
 # Drop into a bash shell to inspect the sandbox environment
 claude-sandbox shell
+
+# Mount all host paths as read-only (workspace, config, extra mounts)
+claude-sandbox --readonly
 ```
 
 ## Per-Project Configuration

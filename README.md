@@ -94,6 +94,9 @@ claude-sandbox --profile dev       # Use specific profile
 claude-sandbox -p prod             # Short form
 claude-sandbox --profile dev login # Profile + args to Claude
 
+# Mount all host paths as read-only (workspace, config, extra mounts)
+claude-sandbox --readonly
+
 # Print the full docker run command without executing
 claude-sandbox --dry-run
 ```

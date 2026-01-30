@@ -43,6 +43,7 @@ first_cmd=""           # First non-flag argument (used to detect "shell" command
 skip_next=false        # Flag to skip the next argument (used for --profile value)
 dry_run=false          # When true, print the docker command instead of running it
 audit_log=false        # When true, keep named container and dump logs on exit
+readonly_mode=false    # When true, mount all host paths as read-only
 
 # Extract our flags (--profile, --dry-run), pass everything else to Claude
 for arg in "$@"; do
@@ -56,6 +57,9 @@ for arg in "$@"; do
   elif [ "$arg" = "--dry-run" ]; then
     # Enable dry-run mode: print command without executing
     dry_run=true
+  elif [ "$arg" = "--readonly" ]; then
+    # Enable readonly mode: all host mounts become read-only
+    readonly_mode=true
   else
     # Track the first non-flag arg to detect the "shell" command
     [ -z "$first_cmd" ] && first_cmd="$arg"
@@ -220,6 +224,28 @@ if [ -f ".claude-sandbox.Dockerfile" ]; then
   fi
 fi
 
+# --- Readonly mode ---
+# When enabled, all host mounts get :ro suffix and extra profile mounts are forced read-only.
+# A tmpfs overlay keeps the plans directory writable so Claude can still create plans.
+ro_suffix=""
+readonly_args=()
+if [ "$readonly_mode" = true ]; then
+  ro_suffix=":ro"
+  readonly_args+=(--tmpfs "/home/claude/.claude/plans:rw,nosuid,size=64m,uid=1000,gid=1000")
+  # Force all extra mounts to read-only regardless of profile config
+  forced_mounts=()
+  for mount_arg in "${extra_mounts[@]+"${extra_mounts[@]}"}"; do
+    if [ "$mount_arg" = "-v" ]; then
+      forced_mounts+=(-v)
+    elif [[ "$mount_arg" != *":ro" ]]; then
+      forced_mounts+=("${mount_arg}:ro")
+    else
+      forced_mounts+=("$mount_arg")
+    fi
+  done
+  extra_mounts=("${forced_mounts[@]+"${forced_mounts[@]}"}")
+fi
+
 # --- Build the docker run command ---
 # Use --rm for ephemeral containers; use named containers when audit logging
 # is enabled so we can dump logs after the session ends.
@@ -258,13 +284,15 @@ docker_cmd=(
   # Set the working directory inside the container to match the host
   --workdir "$workdir"
   # Mount the current project directory at the same path for path parity
-  -v "$workdir:$workdir"
+  -v "$workdir:$workdir${ro_suffix}"
   # Persist Claude Code credentials and config across sessions
-  -v ~/.claude-sandbox/claude-config:/home/claude/.claude
+  -v ~/.claude-sandbox/claude-config:/home/claude/.claude${ro_suffix}
   # Persist Claude Code session state (conversation history, etc.)
-  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json
+  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json${ro_suffix}
   # Mount marketplace plugins read-only so Claude can use installed plugins
   -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro
+  # Add readonly mode tmpfs overlay (plans directory) when enabled
+  ${readonly_args[@]+"${readonly_args[@]}"}
   # Add any profile-configured extra mounts, ports, and entrypoint overrides
   ${extra_mounts[@]+"${extra_mounts[@]}"}
   ${extra_ports[@]+"${extra_ports[@]}"}
