@@ -45,7 +45,7 @@
 ```bash
 git clone https://github.com/tsilva/claude-sandbox.git
 cd claude-sandbox
-./docker/install.sh
+./claude-sandbox-dev.sh install
 source ~/.zshrc  # or ~/.bashrc
 ```
 
@@ -169,8 +169,6 @@ claude-sandbox                 # Interactive prompt to select profile
 
 📝 **Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are skipped with a warning and the sandbox runs normally.
 
-See the [`examples/`](examples/) directory for sample configuration files.
-
 ## 🐳 Per-Project Dockerfile
 
 Place a `.claude-sandbox.Dockerfile` in your project root to customize the container with project-specific dependencies. The file is a standard Dockerfile that builds on top of the base image:
@@ -186,13 +184,13 @@ When present, a per-project image is automatically built before each run. This l
 
 ## 🛠️ Commands
 
-| Script | Purpose |
-|--------|---------|
-| `./docker/install.sh` | Build image and install `claude-sandbox` script to `~/.claude-sandbox/bin/` |
-| `./docker/build.sh` | Rebuild the container image |
-| `./docker/update.sh` | Pull latest changes and rebuild |
-| `./docker/uninstall.sh` | Remove the container image |
-| `./docker/kill-containers.sh` | Force stop any running containers |
+| Command | Purpose |
+|---------|---------|
+| `./claude-sandbox-dev.sh install` | Build image and install `claude-sandbox` script to `~/.claude-sandbox/bin/` |
+| `./claude-sandbox-dev.sh build` | Rebuild the container image |
+| `./claude-sandbox-dev.sh update` | Pull latest changes and rebuild |
+| `./claude-sandbox-dev.sh uninstall` | Remove the container image |
+| `./claude-sandbox-dev.sh kill` | Force stop any running containers |
 
 ## 🔍 How It Works
 
@@ -204,7 +202,7 @@ graph LR
     D -->|changes| A
 ```
 
-1. **install.sh** builds an OCI-compatible image and installs a standalone script to `~/.claude-sandbox/bin/`
+1. **`claude-sandbox-dev.sh install`** builds an OCI-compatible image and installs a standalone script to `~/.claude-sandbox/bin/`
 2. Running `claude-sandbox` starts a container with your current directory mounted at its actual path
 3. Claude Code runs with `--dangerously-skip-permissions` inside the isolated environment
 4. All changes to the mounted directory are reflected in your project
@@ -215,19 +213,15 @@ graph LR
 
 ```
 claude-sandbox/
-├── Dockerfile              # Shared OCI-compatible image definition
+├── Dockerfile              # OCI-compatible image definition
 ├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
+├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
-│   └── common.sh           # Shared functions for all runtime scripts
-├── docker/                 # Docker runtime scripts
-│   ├── config.sh           # Docker-specific configuration
-│   ├── build.sh
-│   ├── install.sh
-│   ├── update.sh
-│   ├── uninstall.sh
-│   └── kill-containers.sh
-├── examples/               # Sample .claude-sandbox.json configs
+│   ├── common.sh               # Shared functions for dev CLI
+│   ├── claude-sandbox-template.sh  # Standalone script template
+│   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
+│   └── install-claude-code.sh  # Claude Code installer
 ├── tests/
 │   └── smoke-test.sh       # Basic smoke tests
 ├── .github/workflows/
@@ -236,8 +230,6 @@ claude-sandbox/
 ├── CLAUDE.md
 └── README.md
 ```
-
-The `docker/` scripts are thin wrappers (~15 lines each) that set configuration variables and delegate to shared functions in `scripts/common.sh`.
 
 ## ⚙️ Resource Limits
 
@@ -272,7 +264,7 @@ curl -I https://api.anthropic.com
 The container user UID is set at build time to match your host user. If you see permission errors on mounted files, rebuild:
 
 ```bash
-./docker/build.sh  # Rebuilds with your current UID
+./claude-sandbox-dev.sh build  # Rebuilds with your current UID
 ```
 
 ### "Configuration file corrupted" on first run

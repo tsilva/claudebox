@@ -1,7 +1,0 @@
-{
-  "default": {
-    "mounts": [
-      { "path": "/tmp/output" }
-    ]
-  }
-}

@@ -44,32 +44,20 @@ fi
 # Check against allowlist
 for allowed in $READONLY_CMDS; do
   if [ "$subcmd" = "$allowed" ]; then
-    # Special case: "stash" is only allowed with "list" or no args
+    # Special case: "stash" is only allowed with "list", "show", or no args
     if [ "$subcmd" = "stash" ]; then
-      stash_action=""
-      found_subcmd=false
       for a in "$@"; do
-        if [ "$found_subcmd" = true ]; then
-          case "$a" in
-            -*) ;;
-            *)
-              stash_action="$a"
-              break
-              ;;
-          esac
-        fi
-        [ "$a" = "stash" ] && found_subcmd=true
+        [ "$a" = "stash" ] && continue
+        case "$a" in
+          -*) continue ;;
+          list|show) break ;;
+          *)
+            echo "error: git stash $a is not allowed (read-only mode)" >&2
+            echo "Allowed stash operations: list, show" >&2
+            exit 1
+            ;;
+        esac
       done
-      if [ -n "$stash_action" ] && [ "$stash_action" != "list" ] && [ "$stash_action" != "show" ]; then
-        echo "error: git $subcmd $stash_action is not allowed (read-only mode)" >&2
-        echo "Allowed stash operations: list, show" >&2
-        exit 1
-      fi
-    fi
-    # Special case: "config" only allowed for reads (--get, --get-all, --list, -l)
-    if [ "$subcmd" = "config" ]; then
-      # This won't match since config is not in the allowlist — handled below
-      true
     fi
     exec "$REAL_GIT" "$@"
   fi

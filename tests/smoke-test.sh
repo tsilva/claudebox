@@ -17,7 +17,7 @@ echo ""
 
 # Test 1: Shell scripts pass bash -n syntax check
 echo "--- Syntax checks ---"
-for script in "$REPO_ROOT"/scripts/*.sh "$REPO_ROOT"/docker/*.sh "$REPO_ROOT"/tests/*.sh; do
+for script in "$REPO_ROOT"/scripts/*.sh "$REPO_ROOT"/claude-sandbox-dev.sh "$REPO_ROOT"/tests/*.sh; do
   name="$(basename "$script")"
   if bash -n "$script" 2>/dev/null; then
     pass "$name syntax OK"
@@ -70,8 +70,12 @@ fi
 # Test 4: Generated shell function is valid bash
 echo ""
 echo "--- Shell function ---"
-source "$REPO_ROOT/docker/config.sh"
-REPO_ROOT="$REPO_ROOT" source "$REPO_ROOT/scripts/common.sh"
+RUNTIME_CMD="docker"
+IMAGE_NAME="claude-sandbox"
+FUNCTION_NAME="claude-sandbox"
+RUNTIME_NAME="Docker"
+INSTALL_HINT="Please install Docker Desktop: https://docs.docker.com/get-docker/"
+source "$REPO_ROOT/scripts/common.sh"
 func_body="$(generate_script)"
 if echo "$func_body" | bash -n 2>/dev/null; then
   pass "Generated shell function is valid bash"

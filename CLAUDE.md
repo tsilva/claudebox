@@ -10,19 +10,15 @@ claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerousl
 
 ```
 claude-sandbox/
-├── Dockerfile              # Shared OCI-compatible image definition
+├── Dockerfile              # OCI-compatible image definition
 ├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
+├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
-│   └── common.sh           # Shared functions for all runtime scripts
-├── docker/                 # Docker runtime scripts (thin wrappers)
-│   ├── config.sh           # Docker-specific configuration variables
-│   ├── build.sh            # Build Docker image
-│   ├── install.sh          # Install standalone script for Docker
-│   ├── update.sh           # Pull latest + rebuild
-│   ├── kill-containers.sh  # Stop running Docker containers
-│   └── uninstall.sh        # Remove Docker image
-├── examples/               # Sample .claude-sandbox.json configs
+│   ├── common.sh               # Shared functions for dev CLI
+│   ├── claude-sandbox-template.sh  # Standalone script template
+│   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
+│   └── install-claude-code.sh  # Claude Code installer
 ├── tests/
 │   └── smoke-test.sh       # Smoke tests
 ├── .github/workflows/
@@ -36,16 +32,19 @@ claude-sandbox/
 
 ```bash
 # Build/rebuild the container image
-./docker/build.sh
+./claude-sandbox-dev.sh build
 
 # Install (builds image + installs script to ~/.claude-sandbox/bin/)
-./docker/install.sh
+./claude-sandbox-dev.sh install
 
 # Remove the container image
-./docker/uninstall.sh
+./claude-sandbox-dev.sh uninstall
 
 # Force stop running containers
-./docker/kill-containers.sh
+./claude-sandbox-dev.sh kill
+
+# Pull latest + rebuild
+./claude-sandbox-dev.sh update
 ```
 
 ## Usage
@@ -118,15 +117,9 @@ claude-sandbox --profile dev login  # Profile + args to Claude
 The project consists of shell scripts that wrap container runtimes:
 
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
-- **scripts/common.sh** - Shared functions used by all wrapper scripts (build, install, uninstall, kill logic)
-- **docker/** - Thin wrapper scripts for Docker runtime, installs `claude-sandbox` standalone script
-
-### Script Architecture
-
-The `docker/` scripts are thin wrappers (~15 lines each) that:
-1. Set configuration variables (`RUNTIME_CMD`, `IMAGE_NAME`, `FUNCTION_NAME`, etc.)
-2. Source `scripts/common.sh`
-3. Call the appropriate function (`do_build`, `do_install`, `do_uninstall`, or `do_kill_containers`)
+- **scripts/common.sh** - Shared functions (build, install, uninstall, kill)
+- **scripts/claude-sandbox-template.sh** - Template for the installed standalone script
+- **claude-sandbox-dev.sh** - Single dev CLI that dispatches to `common.sh` functions
 
 ### Key Implementation Details
 
