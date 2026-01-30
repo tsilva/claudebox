@@ -104,7 +104,6 @@ if [ -f ".claude-sandbox.json" ]; then
           mounts: [(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)],
           ports: [(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)],
           network: (.network // "bridge"),
-          timeout: (.timeout // empty),
           audit_log: (.audit_log // false)
         }
       ' .claude-sandbox.json 2>/dev/null)
@@ -152,7 +151,6 @@ if [ -f ".claude-sandbox.json" ]; then
 
       # Parse scalar configuration values from the profile
       network_mode=$(echo "$profile_config" | jq -r '.network')
-      profile_timeout=$(echo "$profile_config" | jq -r '.timeout // empty')
       audit_log=$(echo "$profile_config" | jq -r '.audit_log')
     fi
   fi
@@ -209,22 +207,6 @@ if [ -f ".claude-sandbox.Dockerfile" ]; then
   docker build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
 fi
 
-# --- Session timeout ---
-# Kill the container after this duration to prevent forgotten sessions.
-# Default: 6 hours. Can be overridden by env var or profile config.
-session_timeout="${SESSION_TIMEOUT:-6h}"
-
-# Profile timeout takes precedence over the environment variable
-if [ -n "${profile_timeout:-}" ]; then
-  session_timeout="$profile_timeout"
-fi
-
-# Validate the timeout format: digits with optional s/m/h/d suffix
-if ! [[ "$session_timeout" =~ ^[0-9]+[smhd]?$ ]]; then
-  echo "Error: Invalid session timeout format '$session_timeout' (expected: number with optional s/m/h/d suffix)" >&2
-  exit 1
-fi
-
 # --- Build the docker run command ---
 # Use --rm for ephemeral containers; use named containers when audit logging
 # is enabled so we can dump logs after the session ends.
@@ -255,7 +237,7 @@ docker_cmd=(
   --tmpfs /home/claude/.cache:rw,nosuid,size=256m
   --tmpfs /home/claude/.npm:rw,nosuid,size=128m
   --tmpfs /home/claude/.config:rw,nosuid,size=64m
-  --tmpfs /home/claude/.local:rw,nosuid,size=256m
+  --tmpfs /home/claude/.local:rw,nosuid,size=256m,uid=1000,gid=1000
   # Apply CPU, memory, and process limits
   "${resource_args[@]}"
   # Apply network mode if non-default
@@ -298,9 +280,9 @@ if [ "$audit_log" = "true" ]; then
   # Register cleanup for SIGINT (Ctrl+C) and SIGTERM
   trap cleanup INT TERM
 
-  # Run the container with a timeout; capture the exit code
+  # Run the container; capture the exit code
   exit_code=0
-  timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
+  "${docker_cmd[@]}" || exit_code=$?
 
   # Dump the container's stdout/stderr to a log file for audit review
   log_file=~/.claude-sandbox/logs/${container_name}.log
@@ -313,9 +295,9 @@ if [ "$audit_log" = "true" ]; then
   trap - INT TERM
   exit $exit_code
 else
-  # Without audit logging: simple ephemeral run with timeout
+  # Without audit logging: simple ephemeral run
   exit_code=0
-  timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
+  "${docker_cmd[@]}" || exit_code=$?
   # Propagate the container's exit code
   exit $exit_code
 fi
