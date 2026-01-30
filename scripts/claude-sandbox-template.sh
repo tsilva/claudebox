@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-RUNTIME_CMD="PLACEHOLDER_RUNTIME_CMD"
 IMAGE_NAME="PLACEHOLDER_IMAGE_NAME"
 SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 
@@ -17,6 +16,7 @@ cmd_args=()
 first_cmd=""
 skip_next=false
 dry_run=false
+audit_log=false
 
 # Extract flags, pass remaining args to Claude
 for arg in "$@"; do
@@ -80,11 +80,23 @@ if [ -f ".claude-sandbox.json" ]; then
         exit 1
       fi
 
-      # Extract mounts for profile
+      # Extract all profile config in a single jq call
+      profile_config=$(jq -r --arg p "$profile_name" '
+        .[($p)] | {
+          mounts: [(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)],
+          ports: [(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)],
+          git_readonly: (.git_readonly // true),
+          network: (.network // "bridge"),
+          timeout: (.timeout // empty),
+          audit_log: (.audit_log // false)
+        }
+      ' .claude-sandbox.json 2>/dev/null)
+
+      # Parse mounts
       while IFS= read -r mount_spec; do
         [ -z "$mount_spec" ] && continue
         mount_path="${mount_spec%%:*}"
-        if [[ "$mount_spec" == *":"*":"* ]]; then
+        if [[ "$mount_spec" == *":"*":"*":"* ]]; then
           echo "Warning: Skipping mount path containing ':': $mount_path" >&2
         elif [[ "$mount_path" =~ [[:cntrl:]] ]]; then
           echo "Warning: Skipping mount with invalid characters" >&2
@@ -94,12 +106,9 @@ if [ -f ".claude-sandbox.json" ]; then
         else
           extra_mounts+=(-v "$mount_spec")
         fi
-      done < <(jq -r --arg p "$profile_name" '(.[($p)].mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)' .claude-sandbox.json 2>/dev/null)
+      done < <(echo "$profile_config" | jq -r '.mounts[]')
 
-      # Check if profile opts out of git readonly
-      git_readonly=$(jq -r --arg p "$profile_name" '.[($p)].git_readonly // true' .claude-sandbox.json 2>/dev/null)
-
-      # Extract ports for profile
+      # Parse ports
       while IFS= read -r port_spec; do
         [ -z "$port_spec" ] && continue
         host_port="${port_spec%%:*}"
@@ -111,10 +120,13 @@ if [ -f ".claude-sandbox.json" ]; then
         else
           extra_ports+=(-p "127.0.0.1:$port_spec")
         fi
-      done < <(jq -r --arg p "$profile_name" '(.[($p)].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
+      done < <(echo "$profile_config" | jq -r '.ports[]')
 
-      # Extract network mode for profile
-      network_mode=$(jq -r --arg p "$profile_name" '.[($p)].network // "bridge"' .claude-sandbox.json 2>/dev/null)
+      # Parse scalar values
+      git_readonly=$(echo "$profile_config" | jq -r '.git_readonly')
+      network_mode=$(echo "$profile_config" | jq -r '.network')
+      profile_timeout=$(echo "$profile_config" | jq -r '.timeout // empty')
+      audit_log=$(echo "$profile_config" | jq -r '.audit_log')
     fi
   fi
 fi
@@ -155,16 +167,15 @@ run_image="$IMAGE_NAME"
 if [ -f ".claude-sandbox.Dockerfile" ]; then
   run_image="${IMAGE_NAME}-project"
   echo "Building per-project image..." >&2
-  "$RUNTIME_CMD" build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
+  docker build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
 fi
 
 # Session timeout (default: 6h)
 session_timeout="${SESSION_TIMEOUT:-6h}"
 
-# Extract timeout from profile config if available
-if [ -n "${profile_name:-}" ] && [ -f ".claude-sandbox.json" ] && command -v jq &>/dev/null; then
-  profile_timeout=$(jq -r --arg p "$profile_name" '.[($p)].timeout // empty' .claude-sandbox.json 2>/dev/null)
-  [ -n "$profile_timeout" ] && session_timeout="$profile_timeout"
+# Use profile timeout if available
+if [ -n "${profile_timeout:-}" ]; then
+  session_timeout="$profile_timeout"
 fi
 
 # Validate session timeout format
@@ -173,14 +184,20 @@ if ! [[ "$session_timeout" =~ ^[0-9]+[smhd]?$ ]]; then
   exit 1
 fi
 
-# Audit logging: use a named container instead of --rm
-container_name="claude-sandbox-$(date +%s)-$$"
-mkdir -p ~/.claude-sandbox/logs
-
 # Build the full docker command as an array
+# Use --rm by default; use named container only when audit_log is enabled
+container_args=()
+if [ "$audit_log" = "true" ]; then
+  container_name="claude-sandbox-$(date +%s)-$$"
+  container_args+=(--name "$container_name")
+  mkdir -p ~/.claude-sandbox/logs
+else
+  container_args+=(--rm)
+fi
+
 docker_cmd=(
-  "$RUNTIME_CMD" run -it
-  --name "$container_name"
+  docker run -it
+  "${container_args[@]}"
   --cap-drop=ALL
   --security-opt=no-new-privileges
   --read-only
@@ -208,20 +225,26 @@ if [ "$dry_run" = true ]; then
   exit 0
 fi
 
-cleanup() {
-  "$RUNTIME_CMD" kill "$container_name" 2>/dev/null || true
-  "$RUNTIME_CMD" rm "$container_name" 2>/dev/null || true
-}
-trap cleanup INT TERM
+if [ "$audit_log" = "true" ]; then
+  cleanup() {
+    docker kill "$container_name" 2>/dev/null || true
+    docker rm "$container_name" 2>/dev/null || true
+  }
+  trap cleanup INT TERM
 
-exit_code=0
-timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
+  exit_code=0
+  timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
 
-# Dump session logs
-log_file=~/.claude-sandbox/logs/${container_name}.log
-"$RUNTIME_CMD" logs "$container_name" > "$log_file" 2>&1 || true
-"$RUNTIME_CMD" rm "$container_name" > /dev/null 2>&1 || true
-echo "Session log: $log_file" >&2
+  # Dump session logs
+  log_file=~/.claude-sandbox/logs/${container_name}.log
+  docker logs "$container_name" > "$log_file" 2>&1 || true
+  docker rm "$container_name" > /dev/null 2>&1 || true
+  echo "Session log: $log_file" >&2
 
-trap - INT TERM
-exit $exit_code
+  trap - INT TERM
+  exit $exit_code
+else
+  exit_code=0
+  timeout "$session_timeout" "${docker_cmd[@]}" || exit_code=$?
+  exit $exit_code
+fi

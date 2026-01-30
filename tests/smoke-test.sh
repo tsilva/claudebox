@@ -67,20 +67,16 @@ else
   echo "  SKIP: Docker not available, skipping build tests"
 fi
 
-# Test 4: Generated shell function is valid bash
+# Test 6: Template produces valid bash after placeholder substitution
 echo ""
-echo "--- Shell function ---"
-RUNTIME_CMD="docker"
-IMAGE_NAME="claude-sandbox"
-FUNCTION_NAME="claude-sandbox"
-RUNTIME_NAME="Docker"
-INSTALL_HINT="Please install Docker Desktop: https://docs.docker.com/get-docker/"
-source "$REPO_ROOT/scripts/common.sh"
-func_body="$(generate_script)"
-if echo "$func_body" | bash -n 2>/dev/null; then
-  pass "Generated shell function is valid bash"
+echo "--- Template validation ---"
+template_content=$(sed -e 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
+  -e 's|PLACEHOLDER_FUNCTION_NAME|claude-sandbox|g' \
+  "$REPO_ROOT/scripts/claude-sandbox-template.sh")
+if echo "$template_content" | bash -n 2>/dev/null; then
+  pass "Template with substituted placeholders is valid bash"
 else
-  fail "Generated shell function has syntax errors"
+  fail "Template has syntax errors after placeholder substitution"
 fi
 
 # Summary

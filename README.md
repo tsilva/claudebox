@@ -136,6 +136,7 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `ports[].container` | Yes | Container port number (1-65535) |
 | `git_readonly` | No | If `false`, disables read-only `.git` mount (default: `true`) |
 | `network` | No | Docker network mode: `"bridge"` (default) or `"none"` for isolation |
+| `audit_log` | No | If `true`, saves session logs to `~/.claude-sandbox/logs/` (default: `false`) |
 
 🔒 **Git safety:** A read-only git wrapper inside the container blocks write operations (`commit`, `push`, `add`, `reset`, etc.) while allowing reads (`status`, `log`, `diff`, `blame`, etc.). This applies to all git repositories accessible in the container. To allow git writes, set `"git_readonly": false` in your profile config.
 
@@ -218,7 +219,6 @@ claude-sandbox/
 ├── .dockerignore           # Files excluded from build context
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
-│   ├── common.sh               # Shared functions for dev CLI
 │   ├── claude-sandbox-template.sh  # Standalone script template
 │   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
 │   └── install-claude-code.sh  # Claude Code installer

@@ -15,7 +15,6 @@ claude-sandbox/
 ├── .dockerignore           # Files excluded from build context
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
-│   ├── common.sh               # Shared functions for dev CLI
 │   ├── claude-sandbox-template.sh  # Standalone script template
 │   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
 │   └── install-claude-code.sh  # Claude Code installer
@@ -93,6 +92,7 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 - `ports[].container` (required): Container port number (1-65535)
 - `git_readonly` (optional): If `false`, disables the read-only `.git` mount (default: `true`)
 - `network` (optional): Docker network mode — `"bridge"` (default) or `"none"` for full isolation
+- `audit_log` (optional): If `true`, enables session audit logging to `~/.claude-sandbox/logs/` (default: `false`)
 
 **Requirements:**
 - `jq` must be installed for config parsing (`brew install jq`)
@@ -114,12 +114,11 @@ claude-sandbox --profile dev login  # Profile + args to Claude
 
 ## Architecture
 
-The project consists of shell scripts that wrap container runtimes:
+The project consists of shell scripts that wrap Docker:
 
 - **Dockerfile** - Debian slim image with Claude Code binary installed to `/opt/claude-code/`, entry point runs `claude --dangerously-skip-permissions`
-- **scripts/common.sh** - Shared functions (build, install, uninstall, kill)
+- **claude-sandbox-dev.sh** - Self-contained dev CLI with build, install, uninstall, and kill functions
 - **scripts/claude-sandbox-template.sh** - Template for the installed standalone script
-- **claude-sandbox-dev.sh** - Single dev CLI that dispatches to `common.sh` functions
 
 ### Key Implementation Details
 
@@ -133,7 +132,7 @@ The project consists of shell scripts that wrap container runtimes:
    - `NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt` - Uses system CA certs (Claude Code's bundled certs may be incomplete)
    - `NODE_OPTIONS="--dns-result-order=ipv4first"` - Avoids IPv6 routing issues in Docker
 
-4. **Container runtime**: Docker (recommended) - Stable, works on all platforms
+4. **Container lifecycle**: Containers use `--rm` by default for zero overhead. Audit logging (named containers + log dump) is opt-in via `audit_log: true` in profile config.
 
 ## Requirements
 
