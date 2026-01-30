@@ -238,6 +238,9 @@ fi
 resource_args=()
 resource_args+=(--cpus "${CPU_LIMIT:-4}")
 resource_args+=(--memory "${MEMORY_LIMIT:-8g}")
+resource_args+=(--pids-limit "${PIDS_LIMIT:-256}")
+resource_args+=(--ulimit nofile=1024:2048)
+resource_args+=(--ulimit fsize=1073741824:1073741824)
 
 # Build per-project image if .claude-sandbox.Dockerfile exists
 run_image="$IMAGE_NAME"
@@ -252,6 +255,14 @@ if [ "$dry_run" = true ]; then
   echo "  --cap-drop=ALL \\"
   echo "  --security-opt=no-new-privileges \\"
   echo "  --cpus ${CPU_LIMIT:-4} --memory ${MEMORY_LIMIT:-8g} \\"
+  echo "  --pids-limit ${PIDS_LIMIT:-256} \\"
+  echo "  --ulimit nofile=1024:2048 --ulimit fsize=1073741824:1073741824 \\"
+  echo "  --read-only \\"
+  echo "  --tmpfs /tmp:rw,nosuid,size=512m \\"
+  echo "  --tmpfs /home/claude/.cache:rw,nosuid,size=256m \\"
+  echo "  --tmpfs /home/claude/.npm:rw,nosuid,size=128m \\"
+  echo "  --tmpfs /home/claude/.config:rw,nosuid,size=64m \\"
+  echo "  --tmpfs /home/claude/.local:rw,nosuid,size=256m \\"
   [ -n "${network_mode:-}" ] && [ "$network_mode" != "bridge" ] && echo "  --network $network_mode \\"
   echo "  --workdir $workdir \\"
   echo "  -v $workdir:$workdir \\"
@@ -269,9 +280,31 @@ if [ "$dry_run" = true ]; then
   exit 0
 fi
 
-$RUNTIME_CMD run -it --rm \
+# Session timeout (default: 6h)
+session_timeout="${SESSION_TIMEOUT:-6h}"
+
+# Extract timeout from profile config if available
+if [ -n "${profile_name:-}" ] && [ -f ".claude-sandbox.json" ] && command -v jq &>/dev/null; then
+  profile_timeout=$(jq -r --arg p "$profile_name" '.[($p)].timeout // empty' .claude-sandbox.json 2>/dev/null)
+  [ -n "$profile_timeout" ] && session_timeout="$profile_timeout"
+fi
+
+# Audit logging: use a named container instead of --rm
+container_name="claude-sandbox-$(date +%s)"
+mkdir -p ~/.claude-sandbox/logs
+
+exit_code=0
+timeout "$session_timeout" \
+$RUNTIME_CMD run -it \
+  --name "$container_name" \
   --cap-drop=ALL \
   --security-opt=no-new-privileges \
+  --read-only \
+  --tmpfs /tmp:rw,nosuid,size=512m \
+  --tmpfs /home/claude/.cache:rw,nosuid,size=256m \
+  --tmpfs /home/claude/.npm:rw,nosuid,size=128m \
+  --tmpfs /home/claude/.config:rw,nosuid,size=64m \
+  --tmpfs /home/claude/.local:rw,nosuid,size=256m \
   "${resource_args[@]}" \
   "${network_args[@]}" \
   --workdir "$workdir" \
@@ -282,7 +315,16 @@ $RUNTIME_CMD run -it --rm \
   "${extra_mounts[@]}" \
   "${extra_ports[@]}" \
   "${entrypoint_args[@]}" \
-  "$run_image" "${cmd_args[@]}"
+  "$run_image" "${cmd_args[@]}" \
+  || exit_code=$?
+
+# Dump session logs
+log_file=~/.claude-sandbox/logs/session-$(date +%Y%m%d-%H%M%S).log
+$RUNTIME_CMD logs "$container_name" > "$log_file" 2>&1 || true
+$RUNTIME_CMD rm "$container_name" > /dev/null 2>&1 || true
+echo "Session log: $log_file" >&2
+
+exit $exit_code
 SCRIPT_EOF
 }
 

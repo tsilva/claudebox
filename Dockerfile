@@ -63,8 +63,8 @@ RUN mv /usr/bin/git /usr/bin/git.real && \
 # Pre-create /opt/claude-code (binary install target) and ~/.local/bin
 # (symlink location) with correct ownership.
 RUN useradd -m -s /bin/bash -u "$USER_UID" claude && \
-    mkdir -p /opt/claude-code /home/claude/.local/bin && \
-    chown -R claude:claude /opt/claude-code /home/claude/.local
+    mkdir -p /opt/claude-code /opt/uv /home/claude/.local/bin && \
+    chown -R claude:claude /opt/claude-code /opt/uv /home/claude/.local
 
 # Switch to non-root user for all subsequent commands.
 USER claude
@@ -82,10 +82,10 @@ RUN chmod +x /tmp/install-claude-code.sh && /tmp/install-claude-code.sh && rm /t
 RUN ln -s /opt/claude-code/claude /home/claude/.local/bin/claude
 
 # --- Python Tooling ---
-# Install uv: a fast Python package/project manager used by Claude Code workflows.
-# --user installs to ~/.local so it's on PATH without root.
-# --break-system-packages allows pip install outside a venv on Debian 12+.
-RUN pip3 install --user --break-system-packages uv==0.7.12
+# Install uv to /opt/uv/ so it persists on a read-only rootfs.
+# ~/.local is a tmpfs at runtime, so user-local installs would be lost.
+ENV UV_INSTALL_DIR=/opt/uv/bin
+RUN curl -LsSf https://astral.sh/uv/0.7.12/install.sh | sh
 
 # --- Working Directory ---
 # /workspace is the default working directory. At runtime, the host project
@@ -98,7 +98,7 @@ WORKDIR /workspace
 #   common inside Docker bridge networks.
 # NODE_EXTRA_CA_CERTS: use the system CA certificate bundle instead of
 #   Claude Code's bundled certs, which may be incomplete for some environments.
-ENV PATH="/home/claude/.local/bin:/opt/claude-code:$PATH" \
+ENV PATH="/home/claude/.local/bin:/opt/uv/bin:/opt/claude-code:$PATH" \
     NODE_OPTIONS="--dns-result-order=ipv4first" \
     NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
 
