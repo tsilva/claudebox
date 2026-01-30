@@ -11,20 +11,28 @@
 #   kill       Stop all running containers
 #   update     Pull latest changes and rebuild
 #
+
+# Abort on any error
 set -e
 
+# Resolve the repo root from this script's location (works even if invoked via symlink)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Docker image name used for building and running containers
 IMAGE_NAME="claude-sandbox"
+# Name of the installed CLI command the user will invoke
 SCRIPT_NAME="claude-sandbox"
 
-# Check if Docker CLI is available and the daemon is running
+# Check if Docker CLI is available and the daemon is running.
+# Called before any command that requires Docker.
 check_runtime() {
+  # Verify the docker binary is installed and on PATH
   if ! command -v docker &>/dev/null; then
     echo "Error: Docker is not installed or not in PATH"
     echo "Please install Docker Desktop: https://docs.docker.com/get-docker/"
     exit 1
   fi
 
+  # Verify the Docker daemon is responsive (not just installed)
   if ! docker info &>/dev/null 2>&1; then
     echo "Error: Docker daemon is not running." >&2
     echo "Please start Docker Desktop and try again." >&2
@@ -32,11 +40,13 @@ check_runtime() {
   fi
 }
 
-# Build container image
+# Build the Docker image from the repo's Dockerfile
 do_build() {
+  # Ensure Docker is available before attempting a build
   check_runtime
 
   echo "Building $IMAGE_NAME image..."
+  # Build from the repo root which contains the Dockerfile
   docker build -t "$IMAGE_NAME" "$REPO_ROOT"
 
   echo ""
@@ -44,34 +54,37 @@ do_build() {
   echo "Run '$SCRIPT_NAME' from any directory to start."
 }
 
-# Install standalone script
+# Build the image and install the standalone CLI script to ~/.claude-sandbox/bin/
 do_install() {
-  # Build the image first (calls check_runtime)
+  # Build the image first (calls check_runtime internally)
   do_build
 
-  # Detect shell rc
+  # Detect the user's shell config file to add PATH entry later
   if [ -f "$HOME/.zshrc" ]; then
     shell_rc="$HOME/.zshrc"
   elif [ -f "$HOME/.bashrc" ]; then
     shell_rc="$HOME/.bashrc"
   else
+    # Default to zsh (macOS default) if neither file exists
     shell_rc="$HOME/.zshrc"
     echo "Warning: Neither .zshrc nor .bashrc found, creating $shell_rc"
     echo "If you use a different shell, add the function to your shell config manually."
   fi
 
-  # Generate and install the standalone script
+  # Create the bin directory and generate the standalone script from the template
   local bin_dir="$HOME/.claude-sandbox/bin"
   local script_path="$bin_dir/$SCRIPT_NAME"
   mkdir -p "$bin_dir"
 
+  # Replace placeholders in the template with the actual image/script names
   sed -e "s|PLACEHOLDER_IMAGE_NAME|$IMAGE_NAME|g" \
     -e "s|PLACEHOLDER_FUNCTION_NAME|$SCRIPT_NAME|g" \
     "${REPO_ROOT}/scripts/claude-sandbox-template.sh" > "$script_path"
+  # Make the generated script executable
   chmod +x "$script_path"
   echo "Installed $script_path"
 
-  # Add PATH entry if not already present
+  # Add the bin directory to PATH in the user's shell config (idempotent)
   local path_line='export PATH="$HOME/.claude-sandbox/bin:$PATH"'
   if ! grep -qF '.claude-sandbox/bin' "$shell_rc" 2>/dev/null; then
     echo "" >> "$shell_rc"
@@ -82,6 +95,7 @@ do_install() {
     echo "PATH entry already present in $shell_rc"
   fi
 
+  # Print post-install instructions
   echo ""
   echo "Installation complete!"
   echo ""
@@ -97,21 +111,23 @@ do_install() {
   echo "  $SCRIPT_NAME shell"
 }
 
-# Uninstall image and standalone script
+# Remove the Docker image and the installed standalone script
 do_uninstall() {
+  # Ensure Docker is available to remove the image
   check_runtime
 
-  # Prompt for confirmation
+  # Prompt for confirmation before destructive operations
   read -p "This will remove the $IMAGE_NAME image and standalone script. Continue? [y/N] " confirm
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Uninstall cancelled."
     exit 0
   fi
 
+  # Remove the Docker image (ignore errors if already removed)
   echo "Removing $IMAGE_NAME image..."
   docker image rm "$IMAGE_NAME" 2>/dev/null || echo "Image not found, skipping"
 
-  # Remove standalone script
+  # Remove the standalone CLI script from ~/.claude-sandbox/bin/
   local script_path="$HOME/.claude-sandbox/bin/$SCRIPT_NAME"
   if [ -f "$script_path" ]; then
     rm -f "$script_path"
@@ -120,7 +136,7 @@ do_uninstall() {
     echo "Script not found at $script_path, skipping"
   fi
 
-  # Detect shell rc
+  # Detect shell config to clean up PATH entry
   if [ -f "$HOME/.zshrc" ]; then
     shell_rc="$HOME/.zshrc"
   elif [ -f "$HOME/.bashrc" ]; then
@@ -129,10 +145,12 @@ do_uninstall() {
     shell_rc="$HOME/.zshrc"
   fi
 
-  # Remove PATH entry and comment from shell config
+  # Remove the PATH entry and comment block from the shell config
   if grep -qF '.claude-sandbox/bin' "$shell_rc" 2>/dev/null; then
     echo "Removing PATH entry from $shell_rc..."
+    # Delete both the "# claude-sandbox" comment line and the PATH export line
     sed -i.bak '/^# claude-sandbox$/d;/\.claude-sandbox\/bin/d' "$shell_rc"
+    # Clean up the backup file created by sed -i
     rm -f "$shell_rc.bak"
     echo "PATH entry removed."
   else
@@ -145,20 +163,24 @@ do_uninstall() {
   echo "Run: source $shell_rc"
 }
 
-# Stop all running containers for this image
+# Stop all running containers spawned from the claude-sandbox image
 do_kill_containers() {
+  # Ensure Docker is available to query/stop containers
   check_runtime
 
   echo "Finding running $IMAGE_NAME containers..."
 
+  # List container IDs filtered by the ancestor image
   local containers
   containers=$(docker ps -q --filter "ancestor=$IMAGE_NAME" 2>/dev/null)
 
+  # Nothing to do if no containers are running
   if [ -z "$containers" ]; then
     echo "No $IMAGE_NAME containers found running."
     return 0
   fi
 
+  # Gracefully stop each container; force-kill if stop fails
   echo "Stopping containers..."
   for id in $containers; do
     echo "  - $id"
@@ -169,8 +191,10 @@ do_kill_containers() {
   echo "All $IMAGE_NAME containers stopped."
 }
 
+# Read the first CLI argument as the command (default: empty → show usage)
 cmd="${1:-}"
 
+# Dispatch to the appropriate handler based on the command
 case "$cmd" in
   build)
     do_build
@@ -185,12 +209,14 @@ case "$cmd" in
     do_kill_containers
     ;;
   update)
+    # Pull latest git changes, then rebuild the image
     cd "$REPO_ROOT"
     echo "Pulling latest changes..."
     git pull
     do_build
     ;;
   *)
+    # No valid command — print usage and exit with error
     echo "Usage: $0 <command>"
     echo ""
     echo "Commands:"
