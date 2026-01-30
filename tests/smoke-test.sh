@@ -72,7 +72,7 @@ echo ""
 echo "--- Shell function ---"
 source "$REPO_ROOT/docker/config.sh"
 REPO_ROOT="$REPO_ROOT" source "$REPO_ROOT/scripts/common.sh"
-func_body="$(generate_shell_function)"
+func_body="$(generate_script)"
 if echo "$func_body" | bash -n 2>/dev/null; then
   pass "Generated shell function is valid bash"
 else

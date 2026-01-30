@@ -134,7 +134,7 @@ if [ -f ".claude-sandbox.json" ]; then
     fi
 
     # Profile-based format - each root key is a profile name
-    profile_count=$(jq 'keys | length' .claude-sandbox.json 2>/dev/null)
+    profile_count=$(jq 'keys | length' .claude-sandbox.json 2>/dev/null || echo 0)
 
     if [ -z "$profile_name" ]; then
       if [ "$profile_count" -gt 0 ]; then
@@ -184,7 +184,7 @@ if [ -f ".claude-sandbox.json" ]; then
       while IFS= read -r mount_spec; do
         [ -z "$mount_spec" ] && continue
         mount_path="${mount_spec%%:*}"
-        if [[ "$mount_path" == *":"* ]]; then
+        if [[ "$mount_spec" == *":"*":"* ]]; then
           echo "Warning: Skipping mount path containing ':': $mount_path" >&2
         elif [[ "$mount_path" =~ [[:cntrl:]] ]]; then
           echo "Warning: Skipping mount with invalid characters" >&2
@@ -247,7 +247,7 @@ run_image="$IMAGE_NAME"
 if [ -f ".claude-sandbox.Dockerfile" ]; then
   run_image="${IMAGE_NAME}-project"
   echo "Building per-project image..." >&2
-  $RUNTIME_CMD build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
+  "$RUNTIME_CMD" build -q -f .claude-sandbox.Dockerfile -t "$run_image" . >&2
 fi
 
 if [ "$dry_run" = true ]; then
@@ -295,7 +295,7 @@ mkdir -p ~/.claude-sandbox/logs
 
 exit_code=0
 timeout "$session_timeout" \
-$RUNTIME_CMD run -it \
+"$RUNTIME_CMD" run -it \
   --name "$container_name" \
   --cap-drop=ALL \
   --security-opt=no-new-privileges \
@@ -320,8 +320,8 @@ $RUNTIME_CMD run -it \
 
 # Dump session logs
 log_file=~/.claude-sandbox/logs/session-$(date +%Y%m%d-%H%M%S).log
-$RUNTIME_CMD logs "$container_name" > "$log_file" 2>&1 || true
-$RUNTIME_CMD rm "$container_name" > /dev/null 2>&1 || true
+"$RUNTIME_CMD" logs "$container_name" > "$log_file" 2>&1 || true
+"$RUNTIME_CMD" rm "$container_name" > /dev/null 2>&1 || true
 echo "Session log: $log_file" >&2
 
 exit $exit_code

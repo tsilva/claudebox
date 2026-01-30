@@ -64,7 +64,7 @@ claude-sandbox
 
 ## 📋 Requirements
 
-- [Docker Desktop](https://docs.docker.com/get-docker/) on macOS, Linux, or Windows with WSL
+- [Docker Desktop](https://docs.docker.com/get-docker/) on macOS (Linux/WSL2 not yet supported)
 - **Optional:** `jq` for per-project configuration support (`brew install jq`)
 
 ## 🔐 Authentication
