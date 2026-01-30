@@ -32,7 +32,11 @@ This is the intended behavior — the container boundary provides the isolation 
 
 ## Git Safety
 
-The `.git` directory is mounted read-only by default, preventing `git commit`, `git push`, and other write operations from inside the container. This can be disabled per-profile with `"git_readonly": false`.
+A read-only git wrapper is baked into the container image. The real `git` binary is moved to `/usr/bin/git.real` and replaced with a shell script that only allows read-only subcommands (`status`, `log`, `diff`, `show`, `branch`, `tag`, `blame`, `grep`, etc.). Write commands like `commit`, `push`, `add`, and `reset` are blocked with an error. The wrapper and symlink are owned by root, so the `claude` user cannot modify or bypass them.
+
+This protection applies to **all** git repositories accessible inside the container, not just the mounted working directory.
+
+To allow full git access, set `"git_readonly": false` in your `.claude-sandbox.json` profile.
 
 ## Recommendations
 

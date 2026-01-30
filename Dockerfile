@@ -47,6 +47,15 @@ RUN apt-get update && apt-get install -y \
     python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
+# --- Git Read-Only Wrapper ---
+# Replace the real git binary with a wrapper that only allows read-only
+# subcommands. The real binary is preserved at /usr/bin/git.real.
+# Both files are root-owned, so the claude user cannot modify or bypass them.
+COPY scripts/git-readonly-wrapper.sh /usr/local/bin/git-readonly-wrapper.sh
+RUN mv /usr/bin/git /usr/bin/git.real && \
+    chmod +x /usr/local/bin/git-readonly-wrapper.sh && \
+    ln -s /usr/local/bin/git-readonly-wrapper.sh /usr/bin/git
+
 # --- User Setup ---
 # Create a non-root user "claude" with the configurable UID.
 # Claude Code refuses to run --dangerously-skip-permissions as root,

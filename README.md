@@ -137,7 +137,7 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `git_readonly` | No | If `false`, disables read-only `.git` mount (default: `true`) |
 | `network` | No | Docker network mode: `"bridge"` (default) or `"none"` for isolation |
 
-🔒 **Git safety:** The `.git` directory is mounted read-only by default, preventing git write operations (`commit`, `push`, `add`) inside the container while allowing reads (`status`, `log`, `diff`). To allow git writes, set `"git_readonly": false` in your profile config.
+🔒 **Git safety:** A read-only git wrapper inside the container blocks write operations (`commit`, `push`, `add`, `reset`, etc.) while allowing reads (`status`, `log`, `diff`, `blame`, etc.). This applies to all git repositories accessible in the container. To allow git writes, set `"git_readonly": false` in your profile config.
 
 **Profile selection:**
 - **With `--profile`**: Use the specified profile directly

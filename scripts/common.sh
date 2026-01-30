@@ -217,12 +217,13 @@ ${FUNCTION_NAME}() {
     fi
   fi
 
-  # Mount .git as read-only by default (opt out with "git_readonly": false in profile)
+  # Git write access: when git_readonly is false, bypass the read-only wrapper
+  # by mounting the real git binary over the wrapper symlink
   if [ -z "\${git_readonly:-}" ]; then
     git_readonly="true"
   fi
-  if [ "\$git_readonly" != "false" ] && [ -d "\$workdir/.git" ]; then
-    extra_mounts+=(-v "\$workdir/.git:\$workdir/.git:ro")
+  if [ "\$git_readonly" = "false" ]; then
+    extra_mounts+=(-v /usr/bin/git.real:/usr/bin/git:ro)
   fi
 
   # Network mode (default: bridge)
