@@ -13,6 +13,7 @@ set -euo pipefail
 # Docker image name (replaced at install time by do_install)
 IMAGE_NAME="PLACEHOLDER_IMAGE_NAME"
 # CLI command name (replaced at install time by do_install)
+# shellcheck disable=SC2034
 SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 
 # Resource defaults (overridable via environment)
@@ -284,6 +285,7 @@ fi
 # --- Execute the container ---
 if [ "$audit_log" = "true" ]; then
   # With audit logging: use a named container so we can dump logs afterward
+  # shellcheck disable=SC2317
   cleanup() {
     # On interrupt/termination, force-stop and remove the named container
     docker kill "$container_name" &>/dev/null || true

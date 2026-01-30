@@ -90,11 +90,14 @@ do_install() {
   echo "Installed $script_path"
 
   # Add the bin directory to PATH in the user's shell config (idempotent)
+  # shellcheck disable=SC2016
   local path_line='export PATH="$HOME/.claude-sandbox/bin:$PATH"'
   if ! grep -qF '.claude-sandbox/bin' "$shell_rc" 2>/dev/null; then
-    echo "" >> "$shell_rc"
-    echo "# claude-sandbox" >> "$shell_rc"
-    echo "$path_line" >> "$shell_rc"
+    {
+      echo ""
+      echo "# claude-sandbox"
+      echo "$path_line"
+    } >> "$shell_rc"
     echo "Added PATH entry to $shell_rc"
   else
     echo "PATH entry already present in $shell_rc"
@@ -122,7 +125,7 @@ do_uninstall() {
   check_runtime
 
   # Prompt for confirmation before destructive operations
-  read -p "This will remove the $IMAGE_NAME image and standalone script. Continue? [y/N] " confirm
+  read -rp "This will remove the $IMAGE_NAME image and standalone script. Continue? [y/N] " confirm
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Uninstall cancelled."
     exit 0
