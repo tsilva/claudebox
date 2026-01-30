@@ -15,7 +15,6 @@ claude-sandbox/
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
 │   ├── claude-sandbox-template.sh  # Standalone script template
-│   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
 │   └── install-claude-code.sh  # Claude Code installer
 ├── tests/
 │   └── smoke-test.sh       # Smoke tests
@@ -89,7 +88,6 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 - `mounts[].readonly` (optional): If `true`, mount is read-only (default: `false`)
 - `ports[].host` (required): Host port number (1-65535)
 - `ports[].container` (required): Container port number (1-65535)
-- `git_readonly` (optional): If `false`, disables the read-only `.git` mount (default: `true`)
 - `network` (optional): Docker network mode — `"bridge"` (default) or `"none"` for full isolation
 - `audit_log` (optional): If `true`, enables session audit logging to `~/.claude-sandbox/logs/` (default: `false`)
 

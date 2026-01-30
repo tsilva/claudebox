@@ -131,11 +131,10 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `mounts[].readonly` | No | If `true`, mount is read-only (default: `false`) |
 | `ports[].host` | Yes | Host port number (1-65535) |
 | `ports[].container` | Yes | Container port number (1-65535) |
-| `git_readonly` | No | If `false`, disables read-only `.git` mount (default: `true`) |
 | `network` | No | Docker network mode: `"bridge"` (default) or `"none"` for isolation |
 | `audit_log` | No | If `true`, saves session logs to `~/.claude-sandbox/logs/` (default: `false`) |
 
-🔒 **Git safety:** A read-only git wrapper inside the container blocks write operations (`commit`, `push`, `add`, `reset`, etc.) while allowing reads (`status`, `log`, `diff`, `blame`, etc.). This applies to all git repositories accessible in the container. To allow git writes, set `"git_readonly": false` in your profile config.
+🔒 **Git safety:** When running from a git repository, the `.git` directory is mounted read-only, preventing commits and other write operations. No SSH keys or git credentials are available in the container, so pushes will also fail. When running outside a git repo, a warning is displayed.
 
 **Profile selection:**
 - **With `--profile`**: Use the specified profile directly
@@ -216,7 +215,6 @@ claude-sandbox/
 ├── claude-sandbox-dev.sh   # Dev CLI (build/install/uninstall/kill/update)
 ├── scripts/
 │   ├── claude-sandbox-template.sh  # Standalone script template
-│   ├── git-readonly-wrapper.sh # Read-only git wrapper for container
 │   └── install-claude-code.sh  # Claude Code installer
 ├── tests/
 │   └── smoke-test.sh       # Basic smoke tests

@@ -103,7 +103,6 @@ if [ -f ".claude-sandbox.json" ]; then
         .[($p)] | {
           mounts: [(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)],
           ports: [(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)],
-          git_readonly: (.git_readonly // true),
           network: (.network // "bridge"),
           timeout: (.timeout // empty),
           audit_log: (.audit_log // false)
@@ -152,7 +151,6 @@ if [ -f ".claude-sandbox.json" ]; then
       done < <(echo "$profile_config" | jq -r '.ports[]')
 
       # Parse scalar configuration values from the profile
-      git_readonly=$(echo "$profile_config" | jq -r '.git_readonly')
       network_mode=$(echo "$profile_config" | jq -r '.network')
       profile_timeout=$(echo "$profile_config" | jq -r '.timeout // empty')
       audit_log=$(echo "$profile_config" | jq -r '.audit_log')
@@ -160,15 +158,18 @@ if [ -f ".claude-sandbox.json" ]; then
   fi
 fi
 
-# --- Git write access ---
-# Default to read-only git (wrapper blocks write subcommands)
-if [ -z "${git_readonly:-}" ]; then
-  git_readonly="true"
-fi
-# When git_readonly is false, bypass the wrapper by mounting the real git
-# binary over the wrapper's path, restoring full git functionality
-if [ "$git_readonly" = "false" ]; then
-  extra_mounts+=(-v /usr/bin/git.real:/usr/bin/git:ro)
+# --- Git read-only .git mount ---
+# When inside a git repo, mount .git as read-only to prevent commits.
+# Without SSH keys or git credentials in the container, pushes fail anyway.
+git_dir=""
+if git -C "$workdir" rev-parse --git-dir &>/dev/null; then
+  git_dir="$(cd "$workdir" && git rev-parse --absolute-git-dir)"
+  extra_mounts+=(-v "$git_dir:$git_dir:ro")
+else
+  echo "⚠️  Warning: Not inside a git repository." >&2
+  echo "   The working directory will be mounted read-write with no .git protection." >&2
+  echo "   Claude will have full write access but cannot commit or push (no credentials)." >&2
+  echo "   For git-based projects, run from the repo root for read-only .git protection." >&2
 fi
 
 # --- Network mode ---
