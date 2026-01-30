@@ -1,4 +1,8 @@
 .git/
 *.md
+!VERSION
 logo.png
 TODO.md
+examples/
+tests/
+.github/

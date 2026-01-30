@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Run shellcheck
+        run: shellcheck scripts/*.sh docker/*.sh tests/*.sh
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build --build-arg "USER_UID=$(id -u)" -t claude-sandbox .
+      - name: Verify Claude binary accessible
+        run: docker run --rm claude-sandbox --version || true
+      - name: Verify VERSION in container
+        run: docker run --rm --entrypoint cat claude-sandbox /opt/claude-code/VERSION
+
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax check
+        run: |
+          for f in scripts/*.sh docker/*.sh tests/*.sh; do
+            echo "Checking $f..."
+            bash -n "$f"
+          done

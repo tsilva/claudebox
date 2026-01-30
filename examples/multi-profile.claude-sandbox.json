@@ -1,0 +1,25 @@
+{
+  "dev": {
+    "mounts": [
+      { "path": "/Volumes/Data/input", "readonly": true },
+      { "path": "/Volumes/Data/output" }
+    ],
+    "ports": [
+      { "host": 3000, "container": 3000 }
+    ]
+  },
+  "staging": {
+    "mounts": [
+      { "path": "/Volumes/Data/staging", "readonly": true }
+    ],
+    "ports": [
+      { "host": 8080, "container": 8080 }
+    ],
+    "git_readonly": false
+  },
+  "prod": {
+    "mounts": [
+      { "path": "/Volumes/Data/prod", "readonly": true }
+    ]
+  }
+}

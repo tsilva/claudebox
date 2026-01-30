@@ -1,0 +1,11 @@
+{
+  "dev": {
+    "mounts": [
+      { "path": "/tmp/uploads" }
+    ],
+    "ports": [
+      { "host": 3000, "container": 3000 },
+      { "host": 5173, "container": 5173 }
+    ]
+  }
+}

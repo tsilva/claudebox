@@ -29,11 +29,17 @@ validate_config() {
   fi
 }
 
-# Check if the runtime CLI is available
+# Check if the runtime CLI is available and the daemon is running
 check_runtime() {
   if ! command -v "$RUNTIME_CMD" &>/dev/null; then
     echo "Error: $RUNTIME_NAME is not installed or not in PATH"
     echo "$INSTALL_HINT"
+    exit 1
+  fi
+
+  if ! "$RUNTIME_CMD" info &>/dev/null 2>&1; then
+    echo "Error: $RUNTIME_NAME daemon is not running." >&2
+    echo "Please start $RUNTIME_NAME Desktop and try again." >&2
     exit 1
   fi
 }
@@ -49,6 +55,16 @@ detect_shell_rc() {
     SHELL_RC="$HOME/.zshrc"
     echo "Warning: Neither .zshrc nor .bashrc found, creating $SHELL_RC"
     echo "If you use a different shell, add the function to your shell config manually."
+  fi
+}
+
+# Read version from VERSION file
+get_version() {
+  local version_file="${REPO_ROOT}/VERSION"
+  if [ -f "$version_file" ]; then
+    cat "$version_file" | tr -d '[:space:]'
+  else
+    echo "unknown"
   fi
 }
 
@@ -69,14 +85,25 @@ ${FUNCTION_NAME}() {
   local cmd_args=()
   local first_cmd=""
   local skip_next=false
+  local dry_run=false
 
-  # Extract --profile/-p flag, pass remaining args to Claude
+  # Extract flags, pass remaining args to Claude
   for arg in "\$@"; do
     if [ "\$skip_next" = true ]; then
       profile_name="\$arg"
       skip_next=false
     elif [ "\$arg" = "--profile" ] || [ "\$arg" = "-p" ]; then
       skip_next=true
+    elif [ "\$arg" = "--version" ]; then
+      local ver_file="/opt/claude-code/VERSION"
+      if [ -f "\$ver_file" ]; then
+        echo "${FUNCTION_NAME} \$(cat "\$ver_file" | tr -d '[:space:]')"
+      else
+        echo "${FUNCTION_NAME} unknown"
+      fi
+      return 0
+    elif [ "\$arg" = "--dry-run" ]; then
+      dry_run=true
     else
       [ -z "\$first_cmd" ] && first_cmd="\$arg"
       cmd_args+=("\$arg")
@@ -94,9 +121,13 @@ ${FUNCTION_NAME}() {
     if ! command -v jq &>/dev/null; then
       echo "Warning: jq not installed, skipping .claude-sandbox.json config" >&2
       echo "Install with: brew install jq" >&2
-    elif ! jq -e 'type == "object"' .claude-sandbox.json &>/dev/null; then
-      echo "Warning: Invalid .claude-sandbox.json format" >&2
     else
+      local jq_error
+      if ! jq_error=\$(jq -e 'type == "object"' .claude-sandbox.json 2>&1); then
+        echo "Error: Invalid .claude-sandbox.json: \$jq_error" >&2
+        return 1
+      fi
+
       # Profile-based format - each root key is a profile name
       local profile_count
       profile_count=\$(jq 'keys | length' .claude-sandbox.json 2>/dev/null)
@@ -155,6 +186,7 @@ ${FUNCTION_NAME}() {
             echo "Warning: Skipping mount with invalid characters" >&2
           elif [ ! -e "\$mount_path" ]; then
             echo "Warning: Mount path does not exist: \$mount_path" >&2
+            echo "  Hint: Create it with: mkdir -p \$mount_path" >&2
           else
             extra_mounts+=(-v "\$mount_spec")
           fi
@@ -177,6 +209,10 @@ ${FUNCTION_NAME}() {
             extra_ports+=(-p "127.0.0.1:\$port_spec")
           fi
         done < <(jq -r --arg p "\$profile_name" '(.[\$p].ports // [])[] | (.host|tostring) + ":" + (.container|tostring)' .claude-sandbox.json 2>/dev/null)
+
+        # Extract network mode for profile
+        local network_mode
+        network_mode=\$(jq -r --arg p "\$profile_name" '.[\$p].network // "bridge"' .claude-sandbox.json 2>/dev/null)
       fi
     fi
   fi
@@ -189,6 +225,17 @@ ${FUNCTION_NAME}() {
     extra_mounts+=(-v "\$workdir/.git:\$workdir/.git:ro")
   fi
 
+  # Network mode (default: bridge)
+  local network_args=()
+  if [ -n "\${network_mode:-}" ] && [ "\$network_mode" != "bridge" ]; then
+    network_args=(--network "\$network_mode")
+  fi
+
+  # Resource limits (configurable via env vars)
+  local resource_args=()
+  resource_args+=(--cpus "\${CPU_LIMIT:-4}")
+  resource_args+=(--memory "\${MEMORY_LIMIT:-8g}")
+
   # Build per-project image if .claude-sandbox.Dockerfile exists
   local run_image="${IMAGE_NAME}"
   if [ -f ".claude-sandbox.Dockerfile" ]; then
@@ -197,9 +244,33 @@ ${FUNCTION_NAME}() {
     ${RUNTIME_CMD} build -q -f .claude-sandbox.Dockerfile -t "\$run_image" . >&2
   fi
 
+  if [ "\$dry_run" = true ]; then
+    echo "${RUNTIME_CMD} run -it --rm \\\\"
+    echo "  --cap-drop=ALL \\\\"
+    echo "  --security-opt=no-new-privileges \\\\"
+    echo "  --cpus \${CPU_LIMIT:-4} --memory \${MEMORY_LIMIT:-8g} \\\\"
+    [ -n "\${network_mode:-}" ] && [ "\$network_mode" != "bridge" ] && echo "  --network \$network_mode \\\\"
+    echo "  --workdir \$workdir \\\\"
+    echo "  -v \$workdir:\$workdir \\\\"
+    echo "  -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\\\"
+    echo "  -v ~/.claude-sandbox/.claude.json:/home/claude/.claude.json \\\\"
+    echo "  -v ~/.claude/plugins/marketplaces:/home/claude/.claude/plugins/marketplaces:ro \\\\"
+    for ((i=0; i<\${#extra_mounts[@]}; i+=2)); do
+      echo "  \${extra_mounts[i]} \${extra_mounts[i+1]} \\\\"
+    done
+    for ((i=0; i<\${#extra_ports[@]}; i+=2)); do
+      echo "  \${extra_ports[i]} \${extra_ports[i+1]} \\\\"
+    done
+    [ "\${#entrypoint_args[@]}" -gt 0 ] && echo "  \${entrypoint_args[*]} \\\\"
+    echo "  \$run_image \${cmd_args[*]}"
+    return 0
+  fi
+
   ${RUNTIME_CMD} run -it --rm \\
     --cap-drop=ALL \\
     --security-opt=no-new-privileges \\
+    "\${resource_args[@]}" \\
+    "\${network_args[@]}" \\
     --workdir "\$workdir" \\
     -v "\$workdir:\$workdir" \\
     -v ~/.claude-sandbox/claude-config:/home/claude/.claude \\
@@ -219,7 +290,7 @@ do_build() {
   check_runtime
 
   echo "Building $IMAGE_NAME image..."
-  "$RUNTIME_CMD" build -t "$IMAGE_NAME" "$REPO_ROOT"
+  "$RUNTIME_CMD" build --build-arg "USER_UID=$(id -u)" -t "$IMAGE_NAME" "$REPO_ROOT"
 
   echo ""
   echo "Done! Image '$IMAGE_NAME' is ready."

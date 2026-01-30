@@ -11,6 +11,7 @@ claude-sandbox is a tool that runs Claude Code with full autonomy (`--dangerousl
 ```
 claude-sandbox/
 ├── Dockerfile              # Shared OCI-compatible image definition
+├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
 ├── scripts/
 │   └── common.sh           # Shared functions for all runtime scripts
@@ -18,8 +19,15 @@ claude-sandbox/
 │   ├── config.sh           # Docker-specific configuration variables
 │   ├── build.sh            # Build Docker image
 │   ├── install.sh          # Install shell function for Docker
+│   ├── update.sh           # Pull latest + rebuild
 │   ├── kill-containers.sh  # Stop running Docker containers
 │   └── uninstall.sh        # Remove Docker image
+├── examples/               # Sample .claude-sandbox.json configs
+├── tests/
+│   └── smoke-test.sh       # Smoke tests
+├── .github/workflows/
+│   └── ci.yml              # Shellcheck + Docker build CI
+├── SECURITY.md
 ├── CLAUDE.md
 └── README.md
 ```
@@ -85,10 +93,11 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 - `ports[].host` (required): Host port number (1-65535)
 - `ports[].container` (required): Container port number (1-65535)
 - `git_readonly` (optional): If `false`, disables the read-only `.git` mount (default: `true`)
+- `network` (optional): Docker network mode — `"bridge"` (default) or `"none"` for full isolation
 
 **Requirements:**
 - `jq` must be installed for config parsing (`brew install jq`)
-- If `jq` is missing or config is invalid, extra mounts are silently skipped
+- If `jq` is missing or config is invalid, warnings are shown and extra mounts are skipped
 
 **Path behavior:** The working directory is mounted at its actual path (e.g., `/Users/foo/project` inside and outside). This allows file paths to work identically in both environments.
 

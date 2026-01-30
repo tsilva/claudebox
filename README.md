@@ -27,6 +27,7 @@
 - [📁 Project Structure](#-project-structure)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🔔 Notifications](#-notifications)
+- [🔒 Security](#-security)
 - [📄 License](#-license)
 
 ## ✨ Features
@@ -92,6 +93,12 @@ claude-sandbox shell
 claude-sandbox --profile dev       # Use specific profile
 claude-sandbox -p prod             # Short form
 claude-sandbox --profile dev login # Profile + args to Claude
+
+# Print the full docker run command without executing
+claude-sandbox --dry-run
+
+# Print version
+claude-sandbox --version
 ```
 
 💡 The `shell` argument is useful for debugging or exploring what tools and files are available inside the container.
@@ -128,6 +135,7 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `ports[].host` | Yes | Host port number (1-65535) |
 | `ports[].container` | Yes | Container port number (1-65535) |
 | `git_readonly` | No | If `false`, disables read-only `.git` mount (default: `true`) |
+| `network` | No | Docker network mode: `"bridge"` (default) or `"none"` for isolation |
 
 🔒 **Git safety:** The `.git` directory is mounted read-only by default, preventing git write operations (`commit`, `push`, `add`) inside the container while allowing reads (`status`, `log`, `diff`). To allow git writes, set `"git_readonly": false` in your profile config.
 
@@ -159,7 +167,9 @@ claude-sandbox                 # Interactive prompt to select profile
 }
 ```
 
-📝 **Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are silently skipped and the sandbox runs normally.
+📝 **Note:** Requires `jq` to be installed. If `jq` is missing or the config file is invalid, extra mounts and ports are skipped with a warning and the sandbox runs normally.
+
+See the [`examples/`](examples/) directory for sample configuration files.
 
 ## 🐳 Per-Project Dockerfile
 
@@ -180,6 +190,7 @@ When present, a per-project image is automatically built before each run. This l
 |--------|---------|
 | `./docker/install.sh` | Build image and add `claude-sandbox` shell function |
 | `./docker/build.sh` | Rebuild the container image |
+| `./docker/update.sh` | Pull latest changes and rebuild |
 | `./docker/uninstall.sh` | Remove the container image |
 | `./docker/kill-containers.sh` | Force stop any running containers |
 
@@ -205,6 +216,7 @@ graph LR
 ```
 claude-sandbox/
 ├── Dockerfile              # Shared OCI-compatible image definition
+├── VERSION                 # Semantic version (shown via --version)
 ├── .dockerignore           # Files excluded from build context
 ├── scripts/
 │   └── common.sh           # Shared functions for all runtime scripts
@@ -212,22 +224,55 @@ claude-sandbox/
 │   ├── config.sh           # Docker-specific configuration
 │   ├── build.sh
 │   ├── install.sh
+│   ├── update.sh
 │   ├── uninstall.sh
 │   └── kill-containers.sh
+├── examples/               # Sample .claude-sandbox.json configs
+├── tests/
+│   └── smoke-test.sh       # Basic smoke tests
+├── .github/workflows/
+│   └── ci.yml              # Shellcheck + build CI
+├── SECURITY.md
 ├── CLAUDE.md
 └── README.md
 ```
 
 The `docker/` scripts are thin wrappers (~15 lines each) that set configuration variables and delegate to shared functions in `scripts/common.sh`.
 
+## ⚙️ Resource Limits
+
+By default, containers are limited to 4 CPUs and 8 GB memory. Override via environment variables:
+
+```bash
+CPU_LIMIT=2 MEMORY_LIMIT=4g claude-sandbox
+```
+
 ## 🔧 Troubleshooting
 
-### "ETIMEDOUT" or "Unable to connect to Anthropic services"
+### Docker not running
 
-Verify Docker is running:
+If you see "daemon is not running", start Docker Desktop:
 
 ```bash
 docker info  # Should show Docker daemon info
+```
+
+### "ETIMEDOUT" or "Unable to connect to Anthropic services"
+
+This usually indicates network issues inside the container. Verify Docker has internet access:
+
+```bash
+claude-sandbox shell
+# Inside container:
+curl -I https://api.anthropic.com
+```
+
+### Permission denied / UID mismatch
+
+The container user UID is set at build time to match your host user. If you see permission errors on mounted files, rebuild:
+
+```bash
+./docker/build.sh  # Rebuilds with your current UID
 ```
 
 ### "Configuration file corrupted" on first run
@@ -249,12 +294,29 @@ Make sure both config paths are mounted. Check your shell function includes:
 1. Verify `jq` is installed: `which jq` or `brew install jq`
 2. Validate your config: `jq . .claude-sandbox.json`
 3. Check paths are absolute (start with `/`)
+4. Ensure mount paths exist on the host (see `mkdir -p` hint in warnings)
+
+### Port conflicts
+
+If a port is already in use on the host, you'll see a bind error. Change the host port in `.claude-sandbox.json` or stop the conflicting process:
+
+```bash
+lsof -i :3000  # Find what's using the port
+```
+
+### Docker not enough resources
+
+If builds or runs fail with out-of-memory errors, increase Docker Desktop's resource allocation in **Settings > Resources**.
 
 ## 🔔 Notifications
 
 For macOS desktop notifications when Claude is ready for input, install [claude-code-notify](https://github.com/tsilva/claude-code-notify) and enable sandbox support during its installation.
 
 The notification bridge uses TCP (`host.docker.internal:19223`) to relay messages from the container to the host, where `terminal-notifier` displays them.
+
+## 🔒 Security
+
+See [SECURITY.md](SECURITY.md) for details on the isolation model, what is and isn't protected, and how to report vulnerabilities.
 
 ## 📄 License
 

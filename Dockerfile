@@ -1,14 +1,18 @@
 # Pin base image digest — update periodically via: docker pull debian:stable-slim && docker inspect --format='{{index .RepoDigests 0}}' debian:stable-slim
 FROM debian:stable-slim@sha256:7484fda4fd1755b2eb4d8341c5d01dc9de6e31aae805e8ba8e83056906bec11b
 
+ARG USER_UID=1000
+
+COPY VERSION /opt/claude-code/VERSION
+
 LABEL org.opencontainers.image.title="claude-sandbox" \
       org.opencontainers.image.description="Claude Code in an isolated container"
 
 RUN apt-get update && apt-get install -y curl git netcat-openbsd python3 python3-pip python3-venv python-is-python3 && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user with UID 501 to match macOS user (for volume permissions)
+# Create non-root user with configurable UID for volume permission compatibility
 # Claude Code refuses --dangerously-skip-permissions as root
-RUN useradd -m -s /bin/bash -u 501 claude && \
+RUN useradd -m -s /bin/bash -u "$USER_UID" claude && \
     mkdir -p /opt/claude-code /home/claude/.local/bin && \
     chown -R claude:claude /opt/claude-code /home/claude/.local
 USER claude
