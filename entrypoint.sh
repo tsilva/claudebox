@@ -9,7 +9,7 @@ ln -sf /opt/claude-code/claude /home/claude/.local/bin/claude
 
 # Activate any project-level Python venv so Claude can use project dependencies
 if [ -f .venv/bin/activate ]; then
-  echo "Activating Python virtual environment (.venv)" >&2
+  echo "Activating Python virtual environment (.venv) at $PWD/.venv" >&2
   source .venv/bin/activate
 fi
 

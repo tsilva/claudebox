@@ -93,8 +93,9 @@ if [ -f ".claude-sandbox.json" ]; then
 
     # If no profile was specified via flag, prompt interactively
     if [ -z "$profile_name" ] && [ "$profile_count" -gt 0 ]; then
-      # Read profile names into an array for the select menu
-      mapfile -t profile_array < <(jq -r 'keys[]' .claude-sandbox.json)
+      # Read profile names into an array for the select menu (compatible with Bash 3)
+      profile_array=()
+      while IFS= read -r _p; do profile_array+=("$_p"); done < <(jq -r 'keys[]' .claude-sandbox.json)
       echo "Available profiles:" >&2
       # Present a numbered menu; reads from /dev/tty so it works in pipes
       select profile_name in "${profile_array[@]}"; do
