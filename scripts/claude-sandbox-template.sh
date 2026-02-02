@@ -91,8 +91,11 @@ if [ -f ".claude-sandbox.json" ]; then
     # Count available profiles (root-level keys in the JSON object)
     profile_count=$(jq 'keys | length' .claude-sandbox.json 2>/dev/null || echo 0)
 
-    # If no profile was specified via flag, prompt interactively
-    if [ -z "$profile_name" ] && [ "$profile_count" -gt 0 ]; then
+    # If no profile was specified via flag, auto-select or prompt interactively
+    if [ -z "$profile_name" ] && [ "$profile_count" -eq 1 ]; then
+      profile_name=$(jq -r 'keys[0]' .claude-sandbox.json)
+      echo "Using profile: $profile_name" >&2
+    elif [ -z "$profile_name" ] && [ "$profile_count" -gt 1 ]; then
       # Read profile names into an array for the select menu (compatible with Bash 3)
       profile_array=()
       while IFS= read -r _p; do profile_array+=("$_p"); done < <(jq -r 'keys[]' .claude-sandbox.json)
