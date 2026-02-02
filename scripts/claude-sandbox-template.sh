@@ -21,8 +21,6 @@ SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 : "${TMPFS_CACHE_SIZE:=1g}"
 : "${TMPFS_NPM_SIZE:=256m}"
 : "${TMPFS_LOCAL_SIZE:=512m}"
-: "${ULIMIT_NOFILE:=1024:2048}"
-: "${ULIMIT_FSIZE:=1073741824}"
 
 # Ensure the persistent config directory and session state file exist.
 # claude-config is mounted into the container as ~/.claude/ for credentials.
@@ -122,7 +120,12 @@ if [ -f ".claude-sandbox.json" ]; then
           mounts: [(.mounts // [])[] | .path + ":" + .path + (if .readonly then ":ro" else "" end)],
           ports: [(.ports // [])[] | (.host|tostring) + ":" + (.container|tostring)],
           network: (.network // "bridge"),
-          audit_log: (.audit_log // false)
+          audit_log: (.audit_log // false),
+          cpu: (.cpu // null),
+          memory: (.memory // null),
+          pids_limit: (.pids_limit // null),
+          ulimit_nofile: (.ulimit_nofile // null),
+          ulimit_fsize: (.ulimit_fsize // null)
         }
       ' .claude-sandbox.json 2>/dev/null)
 
@@ -170,6 +173,13 @@ if [ -f ".claude-sandbox.json" ]; then
       # Parse scalar configuration values from the profile
       network_mode=$(echo "$profile_config" | jq -r '.network')
       audit_log=$(echo "$profile_config" | jq -r '.audit_log')
+
+      # Parse optional resource limits from the profile
+      profile_cpu=$(echo "$profile_config" | jq -r '.cpu // empty')
+      profile_memory=$(echo "$profile_config" | jq -r '.memory // empty')
+      profile_pids_limit=$(echo "$profile_config" | jq -r '.pids_limit // empty')
+      profile_ulimit_nofile=$(echo "$profile_config" | jq -r '.ulimit_nofile // empty')
+      profile_ulimit_fsize=$(echo "$profile_config" | jq -r '.ulimit_fsize // empty')
     fi
   fi
 fi
@@ -204,15 +214,13 @@ if [ -n "${network_mode:-}" ] && [ "$network_mode" != "bridge" ]; then
   esac
 fi
 
-# --- Resource limits ---
-# Prevent runaway processes from consuming all host resources.
-# Defaults can be overridden via environment variables.
+# --- Resource limits (opt-in via profile config) ---
 resource_args=()
-resource_args+=(--cpus "${CPU_LIMIT:-4}")              # Max CPU cores
-resource_args+=(--memory "${MEMORY_LIMIT:-8g}")        # Max memory
-resource_args+=(--pids-limit "${PIDS_LIMIT:-256}")     # Max concurrent processes
-resource_args+=(--ulimit "nofile=$ULIMIT_NOFILE")       # Max open file descriptors
-resource_args+=(--ulimit "fsize=$ULIMIT_FSIZE:$ULIMIT_FSIZE")  # Max file size (1GB)
+[ -n "${profile_cpu:-}" ] && resource_args+=(--cpus "$profile_cpu")
+[ -n "${profile_memory:-}" ] && resource_args+=(--memory "$profile_memory")
+[ -n "${profile_pids_limit:-}" ] && resource_args+=(--pids-limit "$profile_pids_limit")
+[ -n "${profile_ulimit_nofile:-}" ] && resource_args+=(--ulimit "nofile=$profile_ulimit_nofile")
+[ -n "${profile_ulimit_fsize:-}" ] && resource_args+=(--ulimit "fsize=$profile_ulimit_fsize:$profile_ulimit_fsize")
 
 # --- Per-project Dockerfile ---
 # If a project provides .claude-sandbox.Dockerfile, build a custom image
@@ -281,7 +289,7 @@ docker_cmd=(
   --tmpfs "/home/claude/.npm:rw,nosuid,size=$TMPFS_NPM_SIZE"
   -v ~/.claude-sandbox/claude-dotconfig:/home/claude/.config${ro_suffix}
   --tmpfs "/home/claude/.local:rw,nosuid,size=$TMPFS_LOCAL_SIZE,uid=1000,gid=1000"
-  # Apply CPU, memory, and process limits
+  # Apply resource limits (if configured in profile)
   ${resource_args[@]+"${resource_args[@]}"}
   # Apply network mode if non-default
   ${network_args[@]+"${network_args[@]}"}

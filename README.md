@@ -136,6 +136,11 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 | `ports[].container` | Yes | Container port number (1-65535) |
 | `network` | No | Docker network mode: `"bridge"` (default) or `"none"` for isolation |
 | `audit_log` | No | If `true`, saves session logs to `~/.claude-sandbox/logs/` (default: `false`) |
+| `cpu` | No | CPU limit (e.g., `"4"`) — maps to `docker --cpus` |
+| `memory` | No | Memory limit (e.g., `"8g"`) — maps to `docker --memory` |
+| `pids_limit` | No | Max processes (e.g., `256`) — maps to `docker --pids-limit` |
+| `ulimit_nofile` | No | Open file descriptors limit (e.g., `"1024:2048"`) |
+| `ulimit_fsize` | No | Max file size in bytes (e.g., `1073741824`) |
 
 🔒 **Git safety:** When running from a git repository, the `.git` directory is mounted read-only, preventing commits and other write operations. No SSH keys or git credentials are available in the container, so pushes will also fail. When running outside a git repo, a warning is displayed.
 
@@ -230,10 +235,18 @@ claude-sandbox/
 
 ## ⚙️ Resource Limits
 
-By default, containers are limited to 4 CPUs and 8 GB memory. Override via environment variables:
+By default, containers run without resource limits. To restrict CPU, memory, or processes, add the fields to your `.claude-sandbox.json` profile:
 
-```bash
-CPU_LIMIT=2 MEMORY_LIMIT=4g claude-sandbox
+```json
+{
+  "dev": {
+    "cpu": "4",
+    "memory": "8g",
+    "pids_limit": 256,
+    "ulimit_nofile": "1024:2048",
+    "ulimit_fsize": 1073741824
+  }
+}
 ```
 
 ## 🔧 Troubleshooting

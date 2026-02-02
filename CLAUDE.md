@@ -93,6 +93,11 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 - `ports[].container` (required): Container port number (1-65535)
 - `network` (optional): Docker network mode — `"bridge"` (default) or `"none"` for full isolation
 - `audit_log` (optional): If `true`, enables session audit logging to `~/.claude-sandbox/logs/` (default: `false`)
+- `cpu` (optional): CPU limit string (e.g., `"4"`) — maps to `docker --cpus`
+- `memory` (optional): Memory limit string (e.g., `"8g"`) — maps to `docker --memory`
+- `pids_limit` (optional): Max number of processes (e.g., `256`) — maps to `docker --pids-limit`
+- `ulimit_nofile` (optional): Open file descriptors limit (e.g., `"1024:2048"`) — maps to `docker --ulimit nofile=`
+- `ulimit_fsize` (optional): Max file size in bytes (e.g., `1073741824`) — maps to `docker --ulimit fsize=`
 
 **Requirements:**
 - `jq` must be installed for config parsing (`brew install jq`)
