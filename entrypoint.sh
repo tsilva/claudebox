@@ -15,4 +15,4 @@ fi
 
 # Replace this process with Claude Code running in fully autonomous mode.
 # All remaining arguments (e.g. "login", "shell") are forwarded to the binary.
-exec claude --dangerously-skip-permissions "$@"
+exec claude --dangerously-skip-permissions --permission-mode plan "$@"
