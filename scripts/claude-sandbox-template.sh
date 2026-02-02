@@ -20,7 +20,6 @@ SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 : "${TMPFS_TMP_SIZE:=1g}"
 : "${TMPFS_CACHE_SIZE:=1g}"
 : "${TMPFS_NPM_SIZE:=256m}"
-: "${TMPFS_CONFIG_SIZE:=128m}"
 : "${TMPFS_LOCAL_SIZE:=512m}"
 : "${ULIMIT_NOFILE:=1024:2048}"
 : "${ULIMIT_FSIZE:=1073741824}"
@@ -28,6 +27,7 @@ SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 # Ensure the persistent config directory and session state file exist.
 # claude-config is mounted into the container as ~/.claude/ for credentials.
 mkdir -p ~/.claude-sandbox/claude-config
+mkdir -p ~/.claude-sandbox/claude-dotconfig
 # Initialize .claude.json if missing or empty (Claude Code expects valid JSON)
 [ -s ~/.claude-sandbox/.claude.json ] || echo '{}' > ~/.claude-sandbox/.claude.json
 
@@ -276,7 +276,7 @@ docker_cmd=(
   --tmpfs "/tmp:rw,nosuid,size=$TMPFS_TMP_SIZE"
   --tmpfs "/home/claude/.cache:rw,nosuid,size=$TMPFS_CACHE_SIZE"
   --tmpfs "/home/claude/.npm:rw,nosuid,size=$TMPFS_NPM_SIZE"
-  --tmpfs "/home/claude/.config:rw,nosuid,size=$TMPFS_CONFIG_SIZE"
+  -v ~/.claude-sandbox/claude-dotconfig:/home/claude/.config${ro_suffix}
   --tmpfs "/home/claude/.local:rw,nosuid,size=$TMPFS_LOCAL_SIZE,uid=1000,gid=1000"
   # Apply CPU, memory, and process limits
   ${resource_args[@]+"${resource_args[@]}"}
