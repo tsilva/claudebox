@@ -165,20 +165,6 @@ if [ -f ".claude-sandbox.json" ]; then
         return 1
       }
 
-      get_block_reason() {
-        local normalized="$1"
-        case "$normalized" in
-          /) echo "root filesystem (would expose entire host)" ;;
-          /bin*|/boot*|/dev*|/etc*|/lib*|/opt*|/proc*|/root*|/run*|/sbin*|/srv*|/sys*|/usr*|/var*)
-            echo "system directory" ;;
-          "$HOME/.ssh"*|"$HOME/.gnupg"*|"$HOME/.aws"*|"$HOME/.azure"*|"$HOME/.gcloud"*|"$HOME/.config/gcloud"*|"$HOME/.kube"*|"$HOME/.docker"*|"$HOME/.npmrc"*|"$HOME/.netrc"*|"$HOME/.password-store"*|"$HOME/.local/share/keyrings"*)
-            echo "contains credentials/keys" ;;
-          "$HOME/.claude"*|"$HOME/.claude-sandbox"*)
-            echo "managed by claude-sandbox" ;;
-          *) echo "security policy" ;;
-        esac
-      }
-
       # Parse mount specifications and validate each one
       while IFS= read -r mount_spec; do
         # Skip empty lines from jq output
@@ -189,8 +175,7 @@ if [ -f ".claude-sandbox.json" ]; then
         normalized_path=$(normalize_path "$mount_path")
         # Check against dangerous path blocklist
         if is_path_blocked "$normalized_path"; then
-          reason=$(get_block_reason "$normalized_path")
-          echo "Error: Mount path blocked ($reason): $mount_path" >&2
+          echo "Error: Mount path blocked (security policy): $mount_path" >&2
         # Reject paths with multiple colons (ambiguous Docker mount syntax)
         elif [[ "$mount_spec" == *":"*":"*":"* ]]; then
           echo "Warning: Skipping mount path containing ':': $mount_path" >&2
@@ -234,16 +219,10 @@ if [ -f ".claude-sandbox.json" ]; then
         fi
       done < <(echo "$profile_config" | jq -r '.ports[]')
 
-      # Parse scalar configuration values from the profile
-      network_mode=$(echo "$profile_config" | jq -r '.network')
-      audit_log=$(echo "$profile_config" | jq -r '.audit_log')
-
-      # Parse optional resource limits from the profile
-      profile_cpu=$(echo "$profile_config" | jq -r '.cpu // empty')
-      profile_memory=$(echo "$profile_config" | jq -r '.memory // empty')
-      profile_pids_limit=$(echo "$profile_config" | jq -r '.pids_limit // empty')
-      profile_ulimit_nofile=$(echo "$profile_config" | jq -r '.ulimit_nofile // empty')
-      profile_ulimit_fsize=$(echo "$profile_config" | jq -r '.ulimit_fsize // empty')
+      # Parse all scalar configuration values in a single jq call
+      IFS=$'\t' read -r network_mode audit_log profile_cpu profile_memory \
+        profile_pids_limit profile_ulimit_nofile profile_ulimit_fsize \
+        < <(echo "$profile_config" | jq -r '[.network, .audit_log, .cpu, .memory, .pids_limit, .ulimit_nofile, .ulimit_fsize] | map(. // "") | @tsv')
     fi
   fi
 fi
@@ -262,18 +241,8 @@ fi
 # --- Network mode ---
 # Default is "bridge" (normal Docker networking); "none" disables all networking
 network_args=()
-if [ -n "${network_mode:-}" ] && [ "$network_mode" != "bridge" ]; then
-  case "$network_mode" in
-    # Only bridge and none are allowed — host/macvlan/etc. would weaken isolation
-    bridge|none)
-      network_args=(--network "$network_mode")
-      ;;
-    *)
-      echo "Error: Unsupported network mode '$network_mode' (allowed: bridge, none)" >&2
-      exit 1
-      ;;
-  esac
-fi
+[[ ! "${network_mode:-bridge}" =~ ^(bridge|none)$ ]] && { echo "Error: Unsupported network mode '$network_mode' (allowed: bridge, none)" >&2; exit 1; }
+[[ "${network_mode:-}" == "none" ]] && network_args=(--network none)
 
 # --- Resource limits (opt-in via profile config) ---
 resource_args=()
@@ -306,17 +275,9 @@ if [ "$readonly_mode" = true ]; then
   ro_suffix=":ro"
   readonly_args+=(--tmpfs "/home/claude/.claude/plans:rw,nosuid,size=64m,uid=1000,gid=1000")
   # Force all extra mounts to read-only regardless of profile config
-  forced_mounts=()
-  for mount_arg in "${extra_mounts[@]+"${extra_mounts[@]}"}"; do
-    if [ "$mount_arg" = "-v" ]; then
-      forced_mounts+=(-v)
-    elif [[ "$mount_arg" != *":ro" ]]; then
-      forced_mounts+=("${mount_arg}:ro")
-    else
-      forced_mounts+=("$mount_arg")
-    fi
+  for i in "${!extra_mounts[@]}"; do
+    [[ "${extra_mounts[$i]}" != "-v" && "${extra_mounts[$i]}" != *":ro" ]] && extra_mounts[$i]+=":ro"
   done
-  extra_mounts=("${forced_mounts[@]+"${forced_mounts[@]}"}")
 fi
 
 # --- Seccomp profile validation ---
