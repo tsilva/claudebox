@@ -42,25 +42,6 @@ RUN useradd -m -s /bin/bash claude && \
 # Switch to non-root user for all subsequent commands.
 USER claude
 
-# --- Claude Code Binary + uv Install ---
-# Download the Claude Code standalone binary from Google Cloud Storage.
-# The install script handles version detection, architecture mapping,
-# binary download, and SHA256 checksum verification.
-# Also installs uv to /opt/uv/ so it persists on a read-only rootfs.
-# ~/.local is a tmpfs at runtime, so user-local installs would be lost.
-COPY --chmod=755 --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
-ENV UV_INSTALL_DIR=/opt/uv/bin
-RUN /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh
-
-# --- uv (Python package installer) ---
-ARG UV_VERSION=0.7.12
-RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
-
-# --- Working Directory ---
-# /workspace is the default working directory. At runtime, the host project
-# directory is bind-mounted here (or at its real path for path compatibility).
-WORKDIR /workspace
-
 # --- Environment Variables ---
 # PATH: include Claude Code binary location and user-local bin (uv, symlink).
 # NODE_OPTIONS: force IPv4-first DNS resolution to avoid IPv6 routing failures
@@ -69,11 +50,38 @@ WORKDIR /workspace
 #   Claude Code's bundled certs, which may be incomplete for some environments.
 # PYTHONDONTWRITEBYTECODE: skip .pyc file generation (unnecessary in containers).
 # PYTHONUNBUFFERED: flush stdout/stderr immediately for real-time log output.
+# NOTE: PATH must be set early so uv is available for subsequent RUN commands.
 ENV PATH="/home/claude/.local/bin:/opt/uv/bin:/opt/claude-code:$PATH" \
+    UV_INSTALL_DIR=/opt/uv/bin \
     NODE_OPTIONS="--dns-result-order=ipv4first" \
     NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+
+# --- Claude Code Binary ---
+# Download the Claude Code standalone binary from Google Cloud Storage.
+# The install script handles version detection, architecture mapping,
+# binary download, and SHA256 checksum verification.
+COPY --chmod=755 --chown=claude:claude scripts/install-claude-code.sh /tmp/install-claude-code.sh
+RUN /tmp/install-claude-code.sh && rm /tmp/install-claude-code.sh
+
+# --- uv (Python package installer) ---
+# Install uv to /opt/uv/bin so it persists on a read-only rootfs.
+# ~/.local is a tmpfs at runtime, so user-local installs would be lost.
+ARG UV_VERSION=0.7.12
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+
+# --- Common Python Packages ---
+# Pre-install pytest for common testing workflows.
+# Requires root for system-wide installation; switch back to claude after.
+USER root
+RUN uv pip install --system --break-system-packages pytest
+USER claude
+
+# --- Working Directory ---
+# /workspace is the default working directory. At runtime, the host project
+# directory is bind-mounted here (or at its real path for path compatibility).
+WORKDIR /workspace
 
 # --- Entrypoint ---
 # Copy the entrypoint script. The entrypoint handles argument parsing

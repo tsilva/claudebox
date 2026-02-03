@@ -51,3 +51,5 @@ Thumbs.db
 *.swp
 *.swo
 *.code-workspace
+
+*.tape
