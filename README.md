@@ -8,6 +8,8 @@
 
   **🐳 Run Claude Code with full autonomy inside an isolated container — let it code freely without touching your system**
 
+  <img src="demo.gif" alt="Demo" width="600"/>
+
   [Docker](https://docs.docker.com/get-docker/) · [Claude Code](https://claude.ai/code)
 </div>
 
