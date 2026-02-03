@@ -9,9 +9,13 @@
   [![GitHub forks](https://img.shields.io/github/forks/tsilva/claude-sandbox?style=flat)](https://github.com/tsilva/claude-sandbox/network/members)
   [![GitHub last commit](https://img.shields.io/github/last-commit/tsilva/claude-sandbox)](https://github.com/tsilva/claude-sandbox/commits/main)
 
-  **🐳 Run Claude Code with full autonomy inside an isolated container — let it code freely without touching your system**
+  **🤖 Let AI code autonomously. Without fear.**
+
+  > *"I gave Claude full root access and watched it refactor my codebase. My system? Untouched."*
 
   <img src="demo.gif" alt="Demo" width="600"/>
+
+  ⭐ **Like it? [Star the repo](https://github.com/tsilva/claude-sandbox) to help others find it!**
 
   [Docker](https://docs.docker.com/get-docker/) · [Claude Code](https://claude.ai/code)
 </div>
@@ -34,6 +38,7 @@
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🔔 Notifications](#-notifications)
 - [🔒 Security](#-security)
+- [🌐 Community](#-community)
 - [📄 License](#-license)
 
 ## ✨ Features
@@ -362,6 +367,10 @@ The notification bridge uses TCP (`host.docker.internal:19223`) to relay message
 ## 🔒 Security
 
 See [SECURITY.md](SECURITY.md) for details on the isolation model, what is and isn't protected, and how to report vulnerabilities.
+
+## 🌐 Community
+
+Share your builds with **#claudesandbox** on Twitter/X
 
 ## 📄 License
 
