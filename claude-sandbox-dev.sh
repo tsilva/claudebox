@@ -81,13 +81,16 @@ do_install() {
   local script_path="$bin_dir/$SCRIPT_NAME"
   mkdir -p "$bin_dir"
 
-  # Replace placeholders in the template with the actual image/script names
-  sed -e "s|PLACEHOLDER_IMAGE_NAME|$IMAGE_NAME|g" \
-    -e "s|PLACEHOLDER_FUNCTION_NAME|$SCRIPT_NAME|g" \
+  # Replace placeholders in the template with the actual image name
+  sed "s|PLACEHOLDER_IMAGE_NAME|$IMAGE_NAME|g" \
     "${REPO_ROOT}/scripts/claude-sandbox-template.sh" > "$script_path"
   # Make the generated script executable
   chmod +x "$script_path"
   echo "Installed $script_path"
+
+  # Copy the seccomp profile to the install directory
+  cp "${REPO_ROOT}/scripts/seccomp.json" "$HOME/.claude-sandbox/seccomp.json"
+  echo "Installed $HOME/.claude-sandbox/seccomp.json"
 
   # Create alias symlink
   ln -sf "$SCRIPT_NAME" "$bin_dir/claudes"
@@ -153,6 +156,13 @@ do_uninstall() {
   if [ -L "$alias_path" ] || [ -f "$alias_path" ]; then
     rm -f "$alias_path"
     echo "Removed $alias_path"
+  fi
+
+  # Remove seccomp profile
+  local seccomp_path="$HOME/.claude-sandbox/seccomp.json"
+  if [ -f "$seccomp_path" ]; then
+    rm -f "$seccomp_path"
+    echo "Removed seccomp profile"
   fi
 
   local shell_rc

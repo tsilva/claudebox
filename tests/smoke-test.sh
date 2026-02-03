@@ -10,14 +10,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Counters for pass/fail tallies
-PASS=0
-FAIL=0
-
-# Helper: record a passing test and increment counter
-pass() { echo "  PASS: $1"; ((PASS++)) || true; }
-# Helper: record a failing test and increment counter
-fail() { echo "  FAIL: $1"; ((FAIL++)) || true; }
+# Use shared test helpers for pass/fail functions
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 echo "=== claude-sandbox smoke tests ==="
 echo ""
@@ -67,8 +62,7 @@ fi
 # Simulates what do_install() does: replace placeholders with real values
 echo ""
 echo "--- Template validation ---"
-template_content=$(sed -e 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
-  -e 's|PLACEHOLDER_FUNCTION_NAME|claude-sandbox|g' \
+template_content=$(sed 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
   "$REPO_ROOT/scripts/claude-sandbox-template.sh")
 # Pipe the substituted template through bash -n to validate syntax
 if echo "$template_content" | bash -n 2>/dev/null; then
@@ -78,7 +72,4 @@ else
 fi
 
 # --- Summary ---
-echo ""
-echo "=== Results: $PASS passed, $FAIL failed ==="
-# Exit non-zero if any test failed so CI catches it
-[ "$FAIL" -eq 0 ] || exit 1
+summary

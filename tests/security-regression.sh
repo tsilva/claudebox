@@ -23,8 +23,7 @@ TEMPLATE="$REPO_ROOT/scripts/claude-sandbox-template.sh"
 
 # Create a processed version of the template with placeholders replaced
 PROCESSED_TEMPLATE=$(mktemp)
-sed -e 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
-    -e 's|PLACEHOLDER_FUNCTION_NAME|claude-sandbox|g' \
+sed 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
     "$TEMPLATE" > "$PROCESSED_TEMPLATE"
 chmod +x "$PROCESSED_TEMPLATE"
 
@@ -34,6 +33,10 @@ cleanup() {
   teardown_test_dir 2>/dev/null || true
 }
 trap cleanup EXIT
+
+# Ensure the seccomp profile is installed for all tests
+mkdir -p ~/.claude-sandbox
+cp "$REPO_ROOT/scripts/seccomp.json" ~/.claude-sandbox/seccomp.json
 
 # --- Test: Critical security flags are present ---
 echo "--- Critical Security Flags ---"
@@ -57,6 +60,17 @@ assert_contains "$output" "nosuid" "tmpfs has nosuid flag"
 
 # Test: tmpfs mounts have proper ownership (uid=1000,gid=1000)
 assert_contains "$output" "uid=1000,gid=1000" "tmpfs has correct ownership"
+
+teardown_test_dir
+
+# --- Test: Seccomp profile is applied ---
+echo ""
+echo "--- Seccomp Profile ---"
+
+setup_test_dir
+
+output=$("$PROCESSED_TEMPLATE" --dry-run 2>&1)
+assert_matches "$output" "--security-opt seccomp=" "seccomp profile specified"
 
 teardown_test_dir
 

@@ -2,8 +2,8 @@
 # =============================================================================
 # claude-sandbox-template.sh - Standalone script template
 #
-# This template is processed by do_install() which replaces PLACEHOLDER_*
-# tokens with real values. The resulting script is installed to
+# This template is processed by do_install() which replaces
+# PLACEHOLDER_IMAGE_NAME with the real value. The resulting script is installed to
 # ~/.claude-sandbox/bin/ and becomes the user-facing CLI.
 # =============================================================================
 
@@ -12,15 +12,15 @@ set -euo pipefail
 
 # Docker image name (replaced at install time by do_install)
 IMAGE_NAME="PLACEHOLDER_IMAGE_NAME"
-# CLI command name (replaced at install time by do_install)
-# shellcheck disable=SC2034
-SCRIPT_NAME="PLACEHOLDER_FUNCTION_NAME"
 
 # Resource defaults (overridable via environment)
 : "${TMPFS_TMP_SIZE:=1g}"
 : "${TMPFS_CACHE_SIZE:=1g}"
 : "${TMPFS_NPM_SIZE:=256m}"
 : "${TMPFS_LOCAL_SIZE:=512m}"
+
+# Seccomp profile path (for syscall filtering)
+SECCOMP_PROFILE="$HOME/.claude-sandbox/seccomp.json"
 
 # Ensure the persistent config directory and session state file exist.
 # claude-config is mounted into the container as ~/.claude/ for credentials.
@@ -42,6 +42,7 @@ skip_next=false        # Flag to skip the next argument (used for --profile valu
 dry_run=false          # When true, print the docker command instead of running it
 audit_log=false        # When true, keep named container and dump logs on exit
 readonly_mode=false    # When true, mount all host paths as read-only
+print_mode=false       # When true, Claude is in -p/--print mode (no TTY needed)
 
 # Extract our flags (--profile, --dry-run), pass everything else to Claude
 for arg in "$@"; do
@@ -61,6 +62,8 @@ for arg in "$@"; do
   else
     # Track the first non-flag arg to detect the "shell" command
     [ -z "$first_cmd" ] && first_cmd="$arg"
+    # Detect -p/--print for TTY allocation (print mode runs non-interactively)
+    [ "$arg" = "-p" ] || [ "$arg" = "--print" ] && print_mode=true
     cmd_args+=("$arg")
   fi
 done
@@ -71,17 +74,6 @@ if [ "$first_cmd" = "shell" ]; then
   # Remove "shell" from cmd_args so it isn't passed to bash
   cmd_args=("${cmd_args[@]:1}")
 fi
-
-# --- Print mode detection ---
-# Claude's -p/--print mode runs non-interactively and exits after completing.
-# Detect this to adjust TTY allocation (no TTY needed for print mode).
-print_mode=false
-for arg in "${cmd_args[@]+"${cmd_args[@]}"}"; do
-  if [ "$arg" = "-p" ] || [ "$arg" = "--print" ]; then
-    print_mode=true
-    break
-  fi
-done
 
 # --- Per-project configuration (.claude-sandbox.json) ---
 if [ -f ".claude-sandbox.json" ]; then
@@ -156,12 +148,16 @@ if [ -f ".claude-sandbox.json" ]; then
         "$HOME/.claude" "$HOME/.claude-sandbox"
       )
 
-      is_path_blocked() {
-        local check_path="$1"
+      normalize_path() {
+        local p="$1"
         local normalized
-        normalized=$(realpath -m "${check_path/#\~/$HOME}" 2>/dev/null) || normalized="${check_path/#\~/$HOME}"
+        normalized=$(realpath -m "${p/#\~/$HOME}" 2>/dev/null) || normalized="${p/#\~/$HOME}"
         [[ "$normalized" != "/" ]] && normalized="${normalized%/}"
+        echo "$normalized"
+      }
 
+      is_path_blocked() {
+        local normalized="$1"
         for blocked in "${BLOCKED_PATHS[@]}"; do
           [[ "$normalized" == "$blocked" ]] && return 0
           [[ "$normalized" == "$blocked"/* ]] && return 0
@@ -170,11 +166,7 @@ if [ -f ".claude-sandbox.json" ]; then
       }
 
       get_block_reason() {
-        local check_path="$1"
-        local normalized
-        normalized=$(realpath -m "${check_path/#\~/$HOME}" 2>/dev/null) || normalized="${check_path/#\~/$HOME}"
-        [[ "$normalized" != "/" ]] && normalized="${normalized%/}"
-
+        local normalized="$1"
         case "$normalized" in
           /) echo "root filesystem (would expose entire host)" ;;
           /bin*|/boot*|/dev*|/etc*|/lib*|/opt*|/proc*|/root*|/run*|/sbin*|/srv*|/sys*|/usr*|/var*)
@@ -193,9 +185,11 @@ if [ -f ".claude-sandbox.json" ]; then
         [ -z "$mount_spec" ] && continue
         # Extract the host path (everything before the first colon)
         mount_path="${mount_spec%%:*}"
+        # Normalize path once for blocklist checks
+        normalized_path=$(normalize_path "$mount_path")
         # Check against dangerous path blocklist
-        if is_path_blocked "$mount_path"; then
-          reason=$(get_block_reason "$mount_path")
+        if is_path_blocked "$normalized_path"; then
+          reason=$(get_block_reason "$normalized_path")
           echo "Error: Mount path blocked ($reason): $mount_path" >&2
         # Reject paths with multiple colons (ambiguous Docker mount syntax)
         elif [[ "$mount_spec" == *":"*":"*":"* ]]; then
@@ -262,10 +256,7 @@ if git -C "$workdir" rev-parse --git-dir &>/dev/null; then
   git_dir="$(cd "$workdir" && git rev-parse --absolute-git-dir)"
   extra_mounts+=(-v "$git_dir:$git_dir:ro")
 else
-  echo "⚠️  Warning: Not inside a git repository." >&2
-  echo "   The working directory will be mounted read-write with no .git protection." >&2
-  echo "   Claude will have full write access but cannot commit or push (no credentials)." >&2
-  echo "   For git-based projects, run from the repo root for read-only .git protection." >&2
+  echo "Warning: Not inside a git repository. Working directory will be writable." >&2
 fi
 
 # --- Network mode ---
@@ -328,6 +319,14 @@ if [ "$readonly_mode" = true ]; then
   extra_mounts=("${forced_mounts[@]+"${forced_mounts[@]}"}")
 fi
 
+# --- Seccomp profile validation ---
+# Ensure the seccomp profile exists before running the container
+if [ ! -f "$SECCOMP_PROFILE" ]; then
+  echo "Error: Seccomp profile not found at $SECCOMP_PROFILE" >&2
+  echo "Please reinstall claude-sandbox." >&2
+  exit 1
+fi
+
 # --- Build the docker run command ---
 # Use --rm for ephemeral containers; use named containers when audit logging
 # is enabled so we can dump logs after the session ends.
@@ -360,6 +359,8 @@ docker_cmd=(
   --cap-drop=ALL
   # Prevent processes from gaining new privileges (e.g. via setuid binaries)
   --security-opt=no-new-privileges
+  # Apply seccomp profile for syscall filtering
+  --security-opt "seccomp=$SECCOMP_PROFILE"
   # Mount rootfs as read-only; writable dirs use tmpfs below
   --read-only
   # Tmpfs mounts for directories that need write access (size-limited)

@@ -24,8 +24,7 @@ TEMPLATE="$REPO_ROOT/scripts/claude-sandbox-template.sh"
 
 # Create a processed version of the template
 PROCESSED_TEMPLATE=$(mktemp)
-sed -e 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
-    -e 's|PLACEHOLDER_FUNCTION_NAME|claude-sandbox|g' \
+sed 's|PLACEHOLDER_IMAGE_NAME|claude-sandbox|g' \
     "$TEMPLATE" > "$PROCESSED_TEMPLATE"
 chmod +x "$PROCESSED_TEMPLATE"
 

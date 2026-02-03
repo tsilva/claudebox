@@ -8,6 +8,9 @@
 # Prevent setuid/setgid escalation
 --security-opt=no-new-privileges
 
+# Custom seccomp profile for syscall filtering
+--security-opt seccomp=
+
 # Read-only root filesystem
 --read-only
 
