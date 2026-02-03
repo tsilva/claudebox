@@ -140,14 +140,65 @@ if [ -f ".claude-sandbox.json" ]; then
         }
       ' .claude-sandbox.json 2>/dev/null)
 
+      # --- Dangerous path blocklist ---
+      # These paths are blocked to prevent exposing sensitive host system data
+      BLOCKED_PATHS=(
+        # Root filesystem
+        "/"
+        # System directories
+        "/bin" "/boot" "/dev" "/etc" "/lib" "/lib32" "/lib64" "/libx32"
+        "/opt" "/proc" "/root" "/run" "/sbin" "/srv" "/sys" "/usr" "/var"
+        # Sensitive user directories (credentials/keys)
+        "$HOME/.ssh" "$HOME/.gnupg" "$HOME/.aws" "$HOME/.azure" "$HOME/.gcloud"
+        "$HOME/.config/gcloud" "$HOME/.kube" "$HOME/.docker" "$HOME/.npmrc"
+        "$HOME/.netrc" "$HOME/.password-store" "$HOME/.local/share/keyrings"
+        # Claude-specific (already managed)
+        "$HOME/.claude" "$HOME/.claude-sandbox"
+      )
+
+      is_path_blocked() {
+        local check_path="$1"
+        local normalized
+        normalized=$(realpath -m "${check_path/#\~/$HOME}" 2>/dev/null) || normalized="${check_path/#\~/$HOME}"
+        [[ "$normalized" != "/" ]] && normalized="${normalized%/}"
+
+        for blocked in "${BLOCKED_PATHS[@]}"; do
+          [[ "$normalized" == "$blocked" ]] && return 0
+          [[ "$normalized" == "$blocked"/* ]] && return 0
+        done
+        return 1
+      }
+
+      get_block_reason() {
+        local check_path="$1"
+        local normalized
+        normalized=$(realpath -m "${check_path/#\~/$HOME}" 2>/dev/null) || normalized="${check_path/#\~/$HOME}"
+        [[ "$normalized" != "/" ]] && normalized="${normalized%/}"
+
+        case "$normalized" in
+          /) echo "root filesystem (would expose entire host)" ;;
+          /bin*|/boot*|/dev*|/etc*|/lib*|/opt*|/proc*|/root*|/run*|/sbin*|/srv*|/sys*|/usr*|/var*)
+            echo "system directory" ;;
+          "$HOME/.ssh"*|"$HOME/.gnupg"*|"$HOME/.aws"*|"$HOME/.azure"*|"$HOME/.gcloud"*|"$HOME/.config/gcloud"*|"$HOME/.kube"*|"$HOME/.docker"*|"$HOME/.npmrc"*|"$HOME/.netrc"*|"$HOME/.password-store"*|"$HOME/.local/share/keyrings"*)
+            echo "contains credentials/keys" ;;
+          "$HOME/.claude"*|"$HOME/.claude-sandbox"*)
+            echo "managed by claude-sandbox" ;;
+          *) echo "security policy" ;;
+        esac
+      }
+
       # Parse mount specifications and validate each one
       while IFS= read -r mount_spec; do
         # Skip empty lines from jq output
         [ -z "$mount_spec" ] && continue
         # Extract the host path (everything before the first colon)
         mount_path="${mount_spec%%:*}"
+        # Check against dangerous path blocklist
+        if is_path_blocked "$mount_path"; then
+          reason=$(get_block_reason "$mount_path")
+          echo "Error: Mount path blocked ($reason): $mount_path" >&2
         # Reject paths with multiple colons (ambiguous Docker mount syntax)
-        if [[ "$mount_spec" == *":"*":"*":"* ]]; then
+        elif [[ "$mount_spec" == *":"*":"*":"* ]]; then
           echo "Warning: Skipping mount path containing ':': $mount_path" >&2
         # Reject paths with path traversal sequences (../)
         elif [[ "$mount_path" =~ (^|/)\.\.($|/) ]]; then
