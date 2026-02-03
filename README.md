@@ -5,6 +5,9 @@
 
   [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+  [![GitHub stars](https://img.shields.io/github/stars/tsilva/claude-sandbox?style=flat)](https://github.com/tsilva/claude-sandbox/stargazers)
+  [![GitHub forks](https://img.shields.io/github/forks/tsilva/claude-sandbox?style=flat)](https://github.com/tsilva/claude-sandbox/network/members)
+  [![GitHub last commit](https://img.shields.io/github/last-commit/tsilva/claude-sandbox)](https://github.com/tsilva/claude-sandbox/commits/main)
 
   **🐳 Run Claude Code with full autonomy inside an isolated container — let it code freely without touching your system**
 
@@ -18,6 +21,7 @@
 ## 📑 Table of Contents
 
 - [✨ Features](#-features)
+- [🤔 Why claude-sandbox?](#-why-claude-sandbox)
 - [🚀 Quick Start](#-quick-start)
 - [📋 Requirements](#-requirements)
 - [🔐 Authentication](#-authentication)
@@ -42,16 +46,36 @@
 - **🧩 Plugin support** — Marketplace plugins from `~/.claude/plugins/marketplaces` are mounted read-only into the container
 - **🎯 Simple setup** — One install script adds a standalone command you can run from any project
 
+## 🤔 Why claude-sandbox?
+
+**The problem:** Claude Code with `--dangerously-skip-permissions` can modify any file on your system. One wrong command and your SSH keys, git config, or system files could be gone.
+
+**The solution:** claude-sandbox runs Claude Code in a Docker container where it has full autonomy *inside the sandbox*, but zero access to your host system except the mounted project directory.
+
+| Without sandbox | With sandbox |
+|-----------------|--------------|
+| Claude can `rm -rf ~/*` | Claude can only modify your project |
+| Claude can read `~/.ssh/*` | No access to SSH keys |
+| Claude can modify `~/.gitconfig` | No access to git credentials |
+| One mistake = system damage | One mistake = rebuild container |
+
+**TL;DR:** Full AI autonomy, zero host risk.
+
 ## 🚀 Quick Start
 
+**Option 1: One-liner install**
+```bash
+curl -fsSL https://raw.githubusercontent.com/tsilva/claude-sandbox/main/install.sh | bash
+```
+
+**Option 2: Manual install**
 ```bash
 git clone https://github.com/tsilva/claude-sandbox.git
 cd claude-sandbox
 ./claude-sandbox-dev.sh install
-source ~/.zshrc  # or ~/.bashrc
 ```
 
-Then authenticate once (uses your Claude Pro/Max subscription):
+Then reload your shell and authenticate once (uses your Claude Pro/Max subscription):
 
 ```bash
 claude-sandbox login

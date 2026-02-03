@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(terminal-notifier:*)",
+      "Bash(sw_vers:*)"
+    ],
+    "deny": []
+  },
+  "sandbox": {
+    "enabled": true
+  }
+}
