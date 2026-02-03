@@ -93,6 +93,13 @@ output=$("$PROCESSED_TEMPLATE" --dry-run --profile dev 2>&1 || true)
 assert_contains "$output" "containing ':'" "colon in path warned"
 rmdir "/tmp/a:b:c" 2>/dev/null || true
 
+# Test: Path traversal should be rejected
+cat > .claude-sandbox.json << 'EOF'
+{"dev":{"mounts":[{"path":"/tmp/test/../../../etc"}]}}
+EOF
+output=$("$PROCESSED_TEMPLATE" --dry-run --profile dev 2>&1 || true)
+assert_contains "$output" "path traversal" "path traversal rejected"
+
 # Test: Non-existent path should warn
 cat > .claude-sandbox.json << 'EOF'
 {"dev":{"mounts":[{"path":"/nonexistent/path/that/does/not/exist"}]}}

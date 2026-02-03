@@ -149,6 +149,9 @@ if [ -f ".claude-sandbox.json" ]; then
         # Reject paths with multiple colons (ambiguous Docker mount syntax)
         if [[ "$mount_spec" == *":"*":"*":"* ]]; then
           echo "Warning: Skipping mount path containing ':': $mount_path" >&2
+        # Reject paths with path traversal sequences (../)
+        elif [[ "$mount_path" =~ (^|/)\.\.($|/) ]]; then
+          echo "Warning: Skipping mount with path traversal: $mount_path" >&2
         # Reject paths with control characters (potential injection)
         elif [[ "$mount_path" =~ [[:cntrl:]] ]]; then
           echo "Warning: Skipping mount with invalid characters" >&2
