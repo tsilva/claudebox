@@ -5,13 +5,11 @@
 
   [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-  [![GitHub stars](https://img.shields.io/github/stars/tsilva/claude-sandbox?style=flat)](https://github.com/tsilva/claude-sandbox/stargazers)
-  [![GitHub forks](https://img.shields.io/github/forks/tsilva/claude-sandbox?style=flat)](https://github.com/tsilva/claude-sandbox/network/members)
   [![GitHub last commit](https://img.shields.io/github/last-commit/tsilva/claude-sandbox)](https://github.com/tsilva/claude-sandbox/commits/main)
 
   **🤖 Let AI code autonomously. Without fear.**
 
-  > *"I gave Claude full root access and watched it refactor my codebase. My system? Untouched."*
+  > *"I gave Claude full autonomy and watched it refactor my codebase. My system? Untouched."*
 
   <img src="demo.gif" alt="Demo" width="600"/>
 
