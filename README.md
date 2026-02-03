@@ -80,19 +80,32 @@ This opens a browser window for OAuth authentication. Your credentials are store
 ## 💻 Usage
 
 ```bash
-# Run Claude Code in the sandbox
+# Run Claude Code in the sandbox (interactive mode)
 claude-sandbox
 
 # Pass arguments to Claude (e.g., login)
 claude-sandbox login
+
+# Non-interactive print mode: run a prompt and exit
+claude-sandbox -p "explain this code"
+claude-sandbox --print "what does main.py do"
+
+# Pipe input to print mode
+cat README.md | claude-sandbox -p "summarize this"
+
+# Print mode with output format for scripting
+claude-sandbox -p --output-format json "list all functions"
 
 # Drop into a bash shell to inspect the sandbox environment
 claude-sandbox shell
 
 # With profiles (see Per-Project Configuration)
 claude-sandbox --profile dev       # Use specific profile
-claude-sandbox -p prod             # Short form
+claude-sandbox -P prod             # Short form (-P uppercase)
 claude-sandbox --profile dev login # Profile + args to Claude
+
+# Combine profile with print mode
+claude-sandbox -P dev -p "run tests"
 
 # Mount all host paths as read-only (workspace, config, extra mounts)
 claude-sandbox --readonly
@@ -102,6 +115,8 @@ claude-sandbox --dry-run
 ```
 
 💡 The `shell` argument is useful for debugging or exploring what tools and files are available inside the container.
+
+💡 **Print mode** (`-p` / `--print`) runs non-interactively, executes the prompt, and exits. This is useful for scripting and automation.
 
 ## ⚙️ Per-Project Configuration
 
@@ -145,14 +160,16 @@ Create a `.claude-sandbox.json` file in your project root to define named profil
 🔒 **Git safety:** When running from a git repository, the `.git` directory is mounted read-only, preventing commits and other write operations. No SSH keys or git credentials are available in the container, so pushes will also fail. When running outside a git repo, a warning is displayed.
 
 **Profile selection:**
-- **With `--profile`**: Use the specified profile directly
+- **With `--profile` or `-P`**: Use the specified profile directly
 - **Without flag**: Interactive numbered menu
 
 ```bash
 claude-sandbox --profile dev   # Use specific profile
-claude-sandbox -p prod         # Short form
+claude-sandbox -P prod         # Short form (-P uppercase)
 claude-sandbox                 # Interactive prompt to select profile
 ```
+
+> **Note:** The `-P` (uppercase) flag is used for profiles to avoid collision with Claude's `-p` (lowercase) print mode flag.
 
 **Example use case:** A data processing project with dev and prod environments:
 

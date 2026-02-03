@@ -49,11 +49,17 @@ claude-sandbox/
 After installation, the `claude-sandbox` command accepts the following arguments:
 
 ```bash
-# Run Claude Code in the sandbox
+# Run Claude Code in the sandbox (interactive mode)
 claude-sandbox
 
 # Pass arguments to Claude (e.g., login)
 claude-sandbox login
+
+# Non-interactive print mode: run a prompt and exit
+claude-sandbox -p "explain this code"
+
+# Pipe input to print mode
+cat file.txt | claude-sandbox -p "summarize this"
 
 # Drop into a bash shell to inspect the sandbox environment
 claude-sandbox shell
@@ -106,15 +112,18 @@ Projects can define named profiles via `.claude-sandbox.json` in the project roo
 **Path behavior:** The working directory is mounted at its actual path (e.g., `/Users/foo/project` inside and outside). This allows file paths to work identically in both environments.
 
 **Profile selection:**
-- With `--profile <name>` or `-p <name>`: Use specified profile
+- With `--profile <name>` or `-P <name>` (uppercase): Use specified profile
 - Without flag: Interactive prompt to select profile
+
+> Note: `-P` (uppercase) is used for profiles to avoid collision with Claude's `-p` (lowercase) print mode.
 
 **Usage:**
 ```bash
 claude-sandbox --profile dev      # Use specific profile
-claude-sandbox -p prod            # Short form
+claude-sandbox -P prod            # Short form (uppercase -P)
 claude-sandbox                    # Interactive prompt
 claude-sandbox --profile dev login  # Profile + args to Claude
+claude-sandbox -P dev -p "run tests"  # Profile + print mode
 ```
 
 ## Architecture

@@ -46,10 +46,10 @@ readonly_mode=false    # When true, mount all host paths as read-only
 # Extract our flags (--profile, --dry-run), pass everything else to Claude
 for arg in "$@"; do
   if [ "$skip_next" = true ]; then
-    # This arg is the value for --profile/-p
+    # This arg is the value for --profile/-P
     profile_name="$arg"
     skip_next=false
-  elif [ "$arg" = "--profile" ] || [ "$arg" = "-p" ]; then
+  elif [ "$arg" = "--profile" ] || [ "$arg" = "-P" ]; then
     # Next arg will be the profile name
     skip_next=true
   elif [ "$arg" = "--dry-run" ]; then
@@ -71,6 +71,17 @@ if [ "$first_cmd" = "shell" ]; then
   # Remove "shell" from cmd_args so it isn't passed to bash
   cmd_args=("${cmd_args[@]:1}")
 fi
+
+# --- Print mode detection ---
+# Claude's -p/--print mode runs non-interactively and exits after completing.
+# Detect this to adjust TTY allocation (no TTY needed for print mode).
+print_mode=false
+for arg in "${cmd_args[@]+"${cmd_args[@]}"}"; do
+  if [ "$arg" = "-p" ] || [ "$arg" = "--print" ]; then
+    print_mode=true
+    break
+  fi
+done
 
 # --- Per-project configuration (.claude-sandbox.json) ---
 if [ -f ".claude-sandbox.json" ]; then
@@ -273,9 +284,18 @@ else
   container_args+=(--rm)
 fi
 
+# --- TTY allocation ---
+# Use -it for interactive mode (default), -i only for print mode (no TTY needed).
+# Print mode supports piping (cat file | claude -p "summarize") which works with -i.
+if [ "$print_mode" = true ]; then
+  tty_flags="-i"
+else
+  tty_flags="-it"
+fi
+
 # Assemble the complete docker run command as an array for safe quoting
 docker_cmd=(
-  docker run -it
+  docker run $tty_flags
   ${container_args[@]+"${container_args[@]}"}
   # Security hardening: drop all Linux capabilities
   --cap-drop=ALL
