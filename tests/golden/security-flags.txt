@@ -1,0 +1,24 @@
+# Security flags that MUST be present in docker run commands
+# This file serves as a baseline for regression detection
+# Format: one flag per line, comments start with #
+
+# Drop all Linux capabilities - prevents privilege escalation
+--cap-drop=ALL
+
+# Prevent setuid/setgid escalation
+--security-opt=no-new-privileges
+
+# Read-only root filesystem
+--read-only
+
+# Tmpfs mounts must have nosuid to prevent setuid binaries
+nosuid
+
+# Git directory must be mounted read-only
+.git:ro
+
+# Ports must bind to localhost only (127.0.0.1)
+# Pattern: -p 127.0.0.1:
+
+# Tmpfs mounts should have proper ownership
+uid=1000,gid=1000

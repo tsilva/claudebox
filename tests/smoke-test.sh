@@ -15,9 +15,9 @@ PASS=0
 FAIL=0
 
 # Helper: record a passing test and increment counter
-pass() { echo "  PASS: $1"; ((PASS++)); }
+pass() { echo "  PASS: $1"; ((PASS++)) || true; }
 # Helper: record a failing test and increment counter
-fail() { echo "  FAIL: $1"; ((FAIL++)); }
+fail() { echo "  FAIL: $1"; ((FAIL++)) || true; }
 
 echo "=== claude-sandbox smoke tests ==="
 echo ""
@@ -25,7 +25,7 @@ echo ""
 # --- Test 1: Shell scripts pass bash -n syntax check ---
 # Validates every .sh file in the repo can be parsed without syntax errors
 echo "--- Syntax checks ---"
-for script in "$REPO_ROOT"/scripts/*.sh "$REPO_ROOT"/claude-sandbox-dev.sh "$REPO_ROOT"/tests/*.sh; do
+for script in "$REPO_ROOT"/scripts/*.sh "$REPO_ROOT"/claude-sandbox-dev.sh "$REPO_ROOT"/tests/*.sh "$REPO_ROOT"/tests/lib/*.sh; do
   name="$(basename "$script")"
   # bash -n only parses without executing — catches syntax errors
   if bash -n "$script" 2>/dev/null; then
