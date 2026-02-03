@@ -89,6 +89,10 @@ do_install() {
   chmod +x "$script_path"
   echo "Installed $script_path"
 
+  # Create alias symlink
+  ln -sf "$SCRIPT_NAME" "$bin_dir/claudes"
+  echo "Installed $bin_dir/claudes (alias)"
+
   # Add the bin directory to PATH in the user's shell config (idempotent)
   # shellcheck disable=SC2016
   local path_line='export PATH="$HOME/.claude-sandbox/bin:$PATH"'
@@ -142,6 +146,13 @@ do_uninstall() {
     echo "Removed $script_path"
   else
     echo "Script not found at $script_path, skipping"
+  fi
+
+  # Remove alias symlink
+  local alias_path="$HOME/.claude-sandbox/bin/claudes"
+  if [ -L "$alias_path" ] || [ -f "$alias_path" ]; then
+    rm -f "$alias_path"
+    echo "Removed $alias_path"
   fi
 
   local shell_rc
